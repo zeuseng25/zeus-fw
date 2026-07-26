@@ -22,7 +22,7 @@ zeus-fw/                 kök (aggregator) · parent: spring-boot-starter-parent
 ## Kurulum
 
 ```bash
-./mvnw clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
+./maven.sh clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
 ```
 
 ## Kullanım (tüketen uygulama)

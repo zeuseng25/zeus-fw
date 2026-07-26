@@ -76,7 +76,7 @@ Her modül, bağımlılık eklenince kendiliğinden devreye girer (Spring Boot s
 ## Build
 
 ```bash
-./mvnw clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
+./maven.sh clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
 ```
 
 Bağımlılık/kod değişince framework'ü yeniden kur; tüketen uygulamalar (`spring-wildfly-arch`) yeni jar'ları ~/.m2'den alır. WildFly tarafında 3. parti `com.zeus` module'ü ancak **3. parti** bağımlılık değişince yenilenir (zeus jar'ları WAR içinde taşınır).
