@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- Spring Boot tabanı: Spring/Hibernate/Jackson/logging vb. sürümleri ve
+         plugin yönetimi (compiler, war, spring-boot) buradan miras alınır. -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.1.3</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>com.zeus</groupId>
+    <artifactId>zeus-fw</artifactId>
+    <version>${revision}</version>
+    <packaging>pom</packaging>
+
+    <name>Zeus Framework (kök)</name>
+    <description>Zeus Framework aggregator: BOM + parent + modüller (Spring Boot tarzı)</description>
+
+    <properties>
+        <!-- TEK VERSİYON KAYNAĞI: tüm zeus modülleri bu değeri kullanır.
+             Değiştirmek için yalnızca burayı güncellemek yeterlidir. -->
+        <revision>1.0.0-SNAPSHOT</revision>
+
+        <java.version>17</java.version>
+        <!-- spring-wildfly-arch ile aynı: Spring Framework sürümü açıkça sabitlenir. -->
+        <spring-framework.version>6.0.11</spring-framework.version>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
+    </properties>
+
+    <!-- Reaktör sırası: önce BOM ve parent, sonra modüller. -->
+    <modules>
+        <module>zeus-dependencies</module>
+        <module>zeus-parent</module>
+        <module>zeus-base</module>
+        <module>zeus-logger</module>
+        <module>zeus-database</module>
+        <module>zeus-service</module>
+        <module>zeus-redis</module>
+        <module>zeus-batch</module>
+        <!-- WAR uygulamalarına build'de enjekte edilen varsayılan deployment dosyası şablonları. -->
+        <module>zeus-war-defaults</module>
+        <!-- Paylaşımlı WildFly 'com.zeus' module'ünün 3. parti bağımlılık sözleşmesi (jar üretmez). -->
+        <module>zeus-wildfly-module</module>
+    </modules>
+
+    <build>
+        <!-- flatten-maven-plugin: yayınlanan (install/deploy) pom'larda ${revision}
+             yerine somut sürümü yazar. resolveCiFriendliesOnly modu pom'un geri kalanını
+             (dependencyManagement/pluginManagement) AYNEN korur. Kökte tanımlı olduğu için
+             tüm alt modüller (pom ve jar) miras alır. -->
+        <plugins>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>flatten-maven-plugin</artifactId>
+                <version>${flatten-maven-plugin.version}</version>
+                <configuration>
+                    <updatePomFile>true</updatePomFile>
+                    <flattenMode>resolveCiFriendliesOnly</flattenMode>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>flatten</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>flatten</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>flatten.clean</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>

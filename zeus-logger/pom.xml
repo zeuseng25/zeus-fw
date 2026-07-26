@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-logger</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus Logger</name>
+    <description>Loglama modülü: standart logback/SLF4J yapılandırması, istek loglama filtresi,
+        WildFly logging subsystem uyumu.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+        <!-- İstek loglama filtresi (OncePerRequestFilter) için. spring-web zeus-base'ten gelir;
+             servlet API'si runtime'da kapsayıcı (WildFly/Tomcat) tarafından sağlanır. -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

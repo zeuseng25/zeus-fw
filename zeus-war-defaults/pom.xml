@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-war-defaults</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus WAR Defaults</name>
+    <description>WAR üreten uygulamalara build sırasında enjekte edilen varsayılan WildFly deployment
+        dosyalarının ŞABLONLARI (jboss-deployment-structure.xml). Uygulamalar bu dosyaları elle
+        YAZMAZ; zeus-parent'taki profil şablonu açar, filtering ile (zeus.module.slot) doldurur ve
+        WAR'ın WEB-INF'ine koyar. Tek doğru kopya burada sürümlenir.
+        Detay: gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md</description>
+
+    <!-- Yalnızca kaynak (resource) taşır; Java kodu yok. Şablondaki ${zeus.module.slot}
+         BU modülün build'inde ÇÖZÜLMEMELİ (filtering kapalı, Maven varsayılanı) —
+         yer tutucu, tüketen uygulamanın build'inde doldurulur. -->
+</project>

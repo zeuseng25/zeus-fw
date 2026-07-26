@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent</relativePath>
+    </parent>
+
+    <artifactId>zeus-wildfly-module</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus WildFly Module (paylaşımlı 3. parti bağımlılık sözleşmesi)</name>
+    <description>
+        WildFly 'com.zeus' module'üne konacak 3. parti kütüphanelerin (Spring, Spring Boot,
+        Hibernate, Jackson, ...) TEK ve MERKEZİ bağımlılık sözleşmesi. scripts/install-zeus-module.sh
+        bu modülün runtime bağımlılık kapanışını (dependency:copy-dependencies) çözüp module'ü üretir.
+
+        ÖNEMLİ: Bu modül, kendisini paylaşan TÜM uygulamaların runtime 3. parti bağımlılıklarının
+        BİRLEŞİMİNİ (union) içermelidir. Yeni bir uygulama, burada olmayan bir kütüphaneye runtime'da
+        ihtiyaç duyuyorsa o bağımlılık BURAYA eklenmeli, sonra module yeniden üretilmelidir
+        (aksi halde o uygulama WildFly'da NoClassDefFoundError alır).
+
+        Sürümler zeus BOM'dan gelir; burada YAZILMAZ. CVE yaması = zeus-dependencies BOM'da override.
+        Detay: zeus-fw/gelistirmeler/08-wildfly-module-dagitim.md
+    </description>
+
+    <dependencies>
+        <!-- ================= Paylaşımlı module'e girecek 3. parti runtime kapanışı =================
+             zeus-* modülleri BURAYA KONMAZ (WAR içinde taşınır; install script zaten dışlar).
+             Aşağıdaki starter'lar spring-wildfly-arch'ın runtime 3. parti bağımlılıklarını yansıtır. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+        </dependency>
+
+        <!-- Gömülü Tomcat module'e KONMAZ: WildFly servlet konteyneri (Undertow) kullanılır.
+             provided scope => starter-web'in çektiği tomcat-embed-core/websocket runtime kapanışından
+             düşer (uygulamadaki ile birebir aynı davranış). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

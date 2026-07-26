@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-service</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus Service</name>
+    <description>Servis katmanı modülü: base service/transaction konvansiyonları, DTO dönüşüm yardımcıları.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- Hedeflenen içerik: @Transactional altyapısı. -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-tx</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

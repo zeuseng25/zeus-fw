@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BU DOSYA FRAMEWORK TARAFINDAN ÜRETİLİR — ELLE YAZILMAZ / APP REPO'SUNDA TUTULMAZ.
+  Şablon: zeus-fw/zeus-war-defaults. zeus-parent, WAR build'inde şablonu açar,
+  ${zeus.module.slot} değerini doldurur ve WEB-INF'e koyar.
+
+  Spring Boot WAR'ının WildFly üzerinde çalışması için:
+  - logging subsystem dışlanır: WildFly kendi log manager'ını dayatmasın.
+  - org.slf4j dışlanır: WAR içindeki Logback/slf4j çakışmasın (LoggerFactory hatası).
+  - com.zeus module bağımlılığı: tüm 3. parti kütüphaneler (Spring, Spring Boot,
+    Hibernate, Jackson, ...) WAR'da değil bu module'de; runtime'da buradan gelir.
+    slot: uygulamanın bağlandığı module sürümü (zeus.module.slot property'si,
+    zeus-parent'tan gelir; platform release başına sabitler).
+    services/meta-inf=import: ServletContainerInitializer, spring.factories,
+    JPA provider gibi META-INF kaynakları görünür olsun.
+-->
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+    <deployment>
+        <exclude-subsystems>
+            <subsystem name="logging"/>
+            <!-- annotations=true ile module anotasyonları composite index'e girince
+                 kullanmadığımız subsystem'ler (CDI, batch, JSF, JAX-RS) module sınıflarını
+                 tarayıp/link etmeye çalışıp hata veriyor. Spring (DI + MVC) kullanıyoruz;
+                 bu subsystem'leri deployment için dışlıyoruz. -->
+            <subsystem name="weld"/>
+            <subsystem name="batch-jberet"/>
+            <subsystem name="jsf"/>
+            <subsystem name="jaxrs"/>
+        </exclude-subsystems>
+        <exclusions>
+            <module name="org.slf4j"/>
+        </exclusions>
+        <dependencies>
+            <!-- annotations=true: module jar'larına gömülü Jandex index'leri import et;
+                 böylece @HandlesTypes(WebApplicationInitializer) taraması deployment
+                 sınıfını module'deki üst hiyerarşiye bağlayıp DispatcherServlet'i kurar. -->
+            <module name="com.zeus" slot="${zeus.module.slot}"
+                    services="import" meta-inf="import" annotations="true"/>
+        </dependencies>
+    </deployment>
+</jboss-deployment-structure>

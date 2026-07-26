@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-base</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus Base</name>
+    <description>Temel modül: ortak exception/ProblemDetail altyapısı, çekirdek tipler.
+        Diğer tüm zeus modülleri bunu kullanır.</description>
+
+    <dependencies>
+        <!-- Auto-configuration kancası için. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- SLF4J API: loglama cephesi. Diğer zeus modülleri bunu zeus-base üzerinden alır. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <!-- Hedeflenen içerik: @RestControllerAdvice + ProblemDetail (RFC 7807). -->
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+    </dependencies>
+
+</project>

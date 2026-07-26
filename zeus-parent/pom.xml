@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-fw</artifactId>
+        <version>${revision}</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus Framework Parent</name>
+    <description>Uygulamaların ve zeus modüllerinin parent'ı (spring-boot-starter-parent benzeri):
+        zeus-dependencies BOM import'u + ortak plugin yönetimi.</description>
+
+    <properties>
+        <!-- App-specific WAR-bundle opt-in'i (ince WAR istisnası).
+             Varsayılan BOŞ → yalnız zeus-* jar'ları WAR'da kalır (3. parti hep module'den).
+             Bir uygulamanın YALNIZCA kendi kullandığı, framework'te/paylaşımlı module'de OLMAYAN
+             bir kütüphaneyi kendi WAR'ında taşıması gerekiyorsa, app pom'unda bu property'yi
+             '|<artifactId-öneki>-' biçiminde set eder (war-plugin config'ini override ETMEDEN).
+             Örn: <zeus.war.keep>|foo-|bar-</zeus.war.keep>
+             Detay: zeus-fw/gelistirmeler/08-wildfly-module-dagitim.md (App-specific dependency). -->
+        <zeus.war.keep/>
+
+        <!-- Uygulamanın bağlanacağı paylaşımlı WildFly module SLOT'u (com.zeus:<slot>).
+             Üretilen jboss-deployment-structure.xml'e filtering ile yazılır (zeus-war-defaults
+             şablonu + aşağıdaki zeus-generated-descriptor profili).
+
+             Değeri PLATFORM release başına sabitler (uygulama pom'unda OVERRIDE EDİLMEZ):
+             - Module içeriği (3. parti sürümler) değişen release'de → yeni versiyonlu slot
+               (örn. 1.1.0). install-zeus-module.sh - -slot 1.1.0 ile sunucuya kurulur; app'ler
+               parent sürümünü yükseltince otomatik yeni slot'a bağlanır (restart'sız geçiş).
+             - Module içeriği değişmeyen release'de → önceki slot değeri korunur
+               (gereksiz slot kopyası oluşmaz).
+             Detay: gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md -->
+        <zeus.module.slot>main</zeus.module.slot>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Zeus BOM: zeus-parent'ı parent alan her proje sürüm yazmadan
+                 zeus-* modüllerini ve yönetilen 3. parti kütüphaneleri kullanabilir. -->
+            <dependency>
+                <groupId>com.zeus</groupId>
+                <artifactId>zeus-dependencies</artifactId>
+                <version>${revision}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <pluginManagement>
+            <plugins>
+                <!-- İnce WAR paketleme politikası (SORUMLULUK SINIRI — framework zorlar):
+                     - zeus-* (framework) jar'ları WAR'a KONUR (WEB-INF/lib).
+                     - Tüm 3. parti jar'lar (Spring, Hibernate, Jackson, ...) WAR'a KONMAZ;
+                       runtime'da WildFly 'com.zeus' module'ünden gelir.
+                     %regex negatif-lookahead ile "zeus- ile başlamayan tüm jar'lar" dışlanır.
+                     WAR üreten uygulamalar bu plugin'i devreye alınca otomatik uygulanır.
+
+                     ÖNEMLİ: WAR'dan 3. parti dışlama bir UYGULAMA değil FRAMEWORK kararıdır ve
+                     buradan zorlanır. Uygulamalar bu yapılandırmayı override ETMEMELİDİR (fat WAR
+                     üretmek yasak). Paylaşımlı 'com.zeus' module'ünü yalnızca framework üretir
+                     (scripts/install-zeus-module.sh); uygulamalar module oluşturamaz / module'e jar
+                     ekleyemez — yalnızca kendi ince WAR'larını deploy eder.
+
+                     İSTİSNA (app-specific): Bir app, framework'te olmayan ve YALNIZ kendi kullandığı
+                     bir kütüphaneyi kendi WAR'ında taşımak isterse ${zeus.war.keep} property'sini set
+                     eder (plugin override etmeden). Regex o öneki dışlama dışı bırakır → jar WAR'da
+                     kalır, paylaşımlı module'e GİRMEZ. Varsayılan boşken davranış: yalnız zeus-*. -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-war-plugin</artifactId>
+                    <configuration>
+                        <packagingExcludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</packagingExcludes>
+                    </configuration>
+                </plugin>
+
+                <!-- Lombok annotation processor yolu (sürüm Spring Boot BOM'undan). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <configuration>
+                        <annotationProcessorPaths>
+                            <path>
+                                <groupId>org.projectlombok</groupId>
+                                <artifactId>lombok</artifactId>
+                                <version>${lombok.version}</version>
+                            </path>
+                        </annotationProcessorPaths>
+                    </configuration>
+                </plugin>
+
+                <!-- spring-boot-maven-plugin: repackage (fat WAR/JAR) kapalı; spring-boot:run açık. -->
+                <plugin>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-maven-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>repackage</id>
+                            <configuration>
+                                <skip>true</skip>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
+    <profiles>
+        <!-- ÜRETİLEN DESCRIPTOR (framework yazar, developer yazmaz):
+             WAR uygulamalarının WEB-INF/jboss-deployment-structure.xml'i app repo'sunda TUTULMAZ;
+             build sırasında zeus-war-defaults şablonundan üretilir:
+               1) dependency:unpack → şablon target/zeus-war-defaults/ altına açılır
+               2) maven-war-plugin webResources (filtering=true) → ${zeus.module.slot} doldurulur,
+                  dosya WAR'ın WEB-INF'ine konur (webResources, src/main/webapp kopyasından ÖNCE
+                  işlendiği için app'te unutulmuş eski bir kopya varsa da üretilen dosya kazanır).
+
+             Aktivasyon: src/main/webapp dizini olan projeler (= WAR uygulamaları). packaging=war
+             aktivasyonu Maven 4 özelliği olduğundan (3.9 POM modeli tanımıyor) file-exists kullanılır.
+             DİKKAT: WAR uygulamalarında src/main/webapp dizini VAR OLMALI (boşsa .gitkeep ile) —
+             yoksa profil devreye girmez ve descriptor üretilmez (verify-module-coverage.sh bu
+             durumu deploy'dan önce yakalar). Framework'ün jar/pom modüllerinde webapp dizini
+             olmadığından profil onlarda hiç devreye girmez (zeus-war-defaults kendisi dahil —
+             döngüsel bağımlılık oluşmaz). -->
+        <profile>
+            <id>zeus-generated-descriptor</id>
+            <activation>
+                <file>
+                    <exists>${basedir}/src/main/webapp</exists>
+                </file>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>unpack-zeus-war-defaults</id>
+                                <phase>generate-resources</phase>
+                                <goals>
+                                    <goal>unpack</goal>
+                                </goals>
+                                <configuration>
+                                    <artifactItems>
+                                        <artifactItem>
+                                            <groupId>com.zeus</groupId>
+                                            <artifactId>zeus-war-defaults</artifactId>
+                                            <version>${revision}</version>
+                                        </artifactItem>
+                                    </artifactItems>
+                                    <includes>WEB-INF/**</includes>
+                                    <outputDirectory>${project.build.directory}/zeus-war-defaults</outputDirectory>
+                                    <overWriteSnapshots>true</overWriteSnapshots>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-war-plugin</artifactId>
+                        <configuration>
+                            <webResources>
+                                <resource>
+                                    <directory>${project.build.directory}/zeus-war-defaults</directory>
+                                    <filtering>true</filtering>
+                                </resource>
+                            </webResources>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
+
+</project>
