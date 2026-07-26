@@ -109,7 +109,7 @@ Tamamlayıcı olarak `spring-wildfly-arch/scripts/install-zeus-module.sh` module
 
 ```bash
 cd zeus-fw
-./maven.sh clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
+mvn clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
 ```
 
 Doğrulama:

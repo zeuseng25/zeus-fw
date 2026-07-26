@@ -68,7 +68,7 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 echo ">> Runtime bağımlılıkları toplanıyor (zeus-wildfly-module, dependency:copy-dependencies)..."
 cd "${MODULE_BUILD_DIR}"
-"${ZEUS_FW_DIR}/maven.sh" -q dependency:copy-dependencies \
+mvn -q dependency:copy-dependencies \
     -DincludeScope=runtime \
     -DoutputDirectory="${TMP}/lib"
 

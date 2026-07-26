@@ -28,7 +28,7 @@ APP_DIR="${1:-$(pwd)}"
 EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind)-api|lombok|spring-boot-jarmode-layertools|zeus-(base|logger|database|service|redis|batch))$'
 
 cd "${APP_DIR}"
-MVN="./maven.sh"; [[ -x "${MVN}" ]] || MVN="mvn"
+MVN="mvn"
 
 # App'in hedeflediği module SLOT'u (zeus.module.slot, zeus-parent'tan; üretilen
 # jboss-deployment-structure.xml'e yazılan değerle aynı kaynak). Kapsam bu slot'a karşı denetlenir.

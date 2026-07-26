@@ -56,7 +56,7 @@ Yan etki: `zeus-parent`'ı parent alan **tüketen uygulamalar da** flatten'ı mi
 
 ## Sürüm Yükseltme
 
-- **Zeus sürümü:** kök `pom.xml`'de `<revision>`'ı değiştir → `./maven.sh clean install`.
+- **Zeus sürümü:** kök `pom.xml`'de `<revision>`'ı değiştir → `mvn clean install`.
 - **Spring Boot sürümü:** kök parent `<version>` + `zeus-dependencies`'teki `spring-boot-dependencies` import sürümü.
 - **3. parti (springdoc/ojdbc):** `zeus-dependencies` property'leri.
 
