@@ -32,7 +32,7 @@
 #
 set -euo pipefail
 
-WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfy-27/wildfly-27.0.1.Final}"
+WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 ZEUS_FW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MODULE_BUILD_DIR="${ZEUS_FW_DIR}/zeus-wildfly-module"   # paylaşımlı module'ün bağımlılık sözleşmesi
 
@@ -90,9 +90,16 @@ echo ">> ${copied} jar kopyalandı -> ${MODULE_DIR}"
 # WildFly @HandlesTypes taraması (Spring SCI -> WebApplicationInitializer) deployment'taki
 # sınıfı module'deki üst hiyerarşiye bağlayabilsin diye. jboss-deployment-structure.xml'de
 # com.zeus dependency'si annotations="true" ile bu index'leri import eder.
-JANDEX_JAR="$(ls "${MODULE_DIR}"/jandex-*.jar 2>/dev/null | head -n1)"
-if [[ -z "${JANDEX_JAR}" ]]; then
-    echo "HATA: module'de jandex jar'ı yok; annotation index gömülemiyor." >&2
+# Jandex ARAÇ olarak Maven'dan çözülür (module içeriğine bağımlı DEĞİL):
+# Hibernate 7 kapanışında jandex jar'ı artık yok (hibernate-models kullanılıyor);
+# indexleme aracı ~/.m2'den alınır, module'e KONMAZ.
+JANDEX_VERSION="3.2.0"
+JANDEX_JAR="${HOME}/.m2/repository/io/smallrye/jandex/${JANDEX_VERSION}/jandex-${JANDEX_VERSION}.jar"
+if [[ ! -f "${JANDEX_JAR}" ]]; then
+    mvn -q dependency:get -Dartifact="io.smallrye:jandex:${JANDEX_VERSION}" -Dtransitive=false
+fi
+if [[ ! -f "${JANDEX_JAR}" ]]; then
+    echo "HATA: jandex ${JANDEX_VERSION} çözülemedi; annotation index gömülemiyor." >&2
     exit 1
 fi
 echo ">> Jandex index gömülüyor (${copied} jar)..."
@@ -124,7 +131,9 @@ echo ">> Jandex index tamam"
     # Objenesis (CGLIB proxy) sun.misc.Unsafe kullanır; java.se bunu içermez
     echo '        <module name="jdk.unsupported"/>'
     # jakarta API'leri WildFly server module'lerinden export ile (deployment görebilsin)
-    for m in servlet annotation persistence transaction validation inject xml.bind activation; do
+    # json + json.bind: Boot 4 http-converter autoconfig'inin @ConditionalOnClass(Jsonb)
+    # introspection'ı tip görünmeyince WARN üretiyor; api modülleri görünür olunca temiz.
+    for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind; do
         echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
     done
     echo '    </dependencies>'

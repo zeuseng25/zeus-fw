@@ -18,7 +18,7 @@
 #
 set -euo pipefail
 
-WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfy-27/wildfly-27.0.1.Final}"
+WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 ZEUS_MODULES="${WILDFLY_HOME}/modules/com/zeus"
 DEPLOYMENTS="${WILDFLY_HOME}/standalone/deployments"
 

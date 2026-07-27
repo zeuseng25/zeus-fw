@@ -6,7 +6,8 @@
 
   Spring Boot WAR'ının WildFly üzerinde çalışması için:
   - logging subsystem dışlanır: WildFly kendi log manager'ını dayatmasın.
-  - org.slf4j dışlanır: WAR içindeki Logback/slf4j çakışmasın (LoggerFactory hatası).
+    (WildFly 41'de ayrıca org.slf4j module'ü kalktığı için eski org.slf4j dışlaması
+    kaldırıldı — slf4j/logback zaten com.zeus module'ünden gelir.)
   - com.zeus module bağımlılığı: tüm 3. parti kütüphaneler (Spring, Spring Boot,
     Hibernate, Jackson, ...) WAR'da değil bu module'de; runtime'da buradan gelir.
     slot: uygulamanın bağlandığı module sürümü (zeus.module.slot property'si,
@@ -27,9 +28,6 @@
             <subsystem name="jsf"/>
             <subsystem name="jaxrs"/>
         </exclude-subsystems>
-        <exclusions>
-            <module name="org.slf4j"/>
-        </exclusions>
         <dependencies>
             <!-- annotations=true: module jar'larına gömülü Jandex index'leri import et;
                  böylece @HandlesTypes(WebApplicationInitializer) taraması deployment

@@ -33,9 +33,11 @@
         <!-- ================= Paylaşımlı module'e girecek 3. parti runtime kapanışı =================
              zeus-* modülleri BURAYA KONMAZ (WAR içinde taşınır; install script zaten dışlar).
              Aşağıdaki starter'lar spring-wildfly-arch'ın runtime 3. parti bağımlılıklarını yansıtır. -->
+        <!-- Boot 4 modülerleşmesi: starter-web'in yerini starter-webmvc aldı
+             (embedded sunucu artık starter'a dahil değil — WildFly/Undertow konteyner). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -51,8 +53,10 @@
         </dependency>
 
         <!-- Gömülü Tomcat module'e KONMAZ: WildFly servlet konteyneri (Undertow) kullanılır.
-             provided scope => starter-web'in çektiği tomcat-embed-core/websocket runtime kapanışından
-             düşer (uygulamadaki ile birebir aynı davranış). -->
+             Boot 4'te de starter-webmvc varsayılan olarak starter-tomcat çeker; provided scope
+             ile tüm alt ağacı (starter-tomcat-runtime, spring-boot-tomcat, tomcat-embed-core/
+             websocket) runtime kapanışından düşer. NOT: tomcat-embed-el KALIR (starter-validation
+             üzerinden gelir; hibernate-validator'ın EL implementasyonu — module'de gerekli). -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-tomcat</artifactId>

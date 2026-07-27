@@ -5,7 +5,7 @@ Spring Boot mimarisine benzeyen, çok modüllü kurumsal Java framework'ü. Uygu
 ## Yapı
 
 ```
-zeus-fw/                 kök (aggregator) · parent: spring-boot-starter-parent:3.1.3 · <revision>
+zeus-fw/                 kök (aggregator) · parent: spring-boot-starter-parent:4.0.7 · <revision>
 ├─ zeus-dependencies/    BOM — tüm sürümler (spring-boot-dependencies + zeus modülleri + 3. parti)
 ├─ zeus-parent/          uygulama parent'ı — pluginManagement + zeus BOM import
 ├─ zeus-base/            GlobalExceptionHandler + ResourceNotFoundException (ProblemDetail)
@@ -16,7 +16,7 @@ zeus-fw/                 kök (aggregator) · parent: spring-boot-starter-parent
 └─ zeus-batch/           (iskelet)
 ```
 
-- **groupId:** `com.zeus` · **paket:** `com.zeus.framework.<modul>` · **Java 17 / Spring Boot 3.1.3**
+- **groupId:** `com.zeus` · **paket:** `com.zeus.framework.<modul>` · **Java 25 / Spring Boot 4.0.7**
 - Tek sürüm: kök `pom.xml`'deki `<revision>` (flatten-maven-plugin ile çözülür).
 
 ## Kurulum
@@ -47,4 +47,4 @@ Modüller `@AutoConfiguration` ile kendiliğinden devreye girer.
 
 `gelistirmeler/` altında numaralı, component bazlı (Türkçe): `00-Genel-Mimari.md`, `01-zeus-base.md` … `07-bom-parent-surum-yonetimi.md`. Çalışma kuralları için `CLAUDE.md`.
 
-Örnek/tüketen uygulama: `../spring-wildfly-arch` (WAR → WildFly 27, Oracle).
+Örnek/tüketen uygulama: `../spring-wildfly-arch` (WAR → WildFly 41, Oracle).

@@ -17,7 +17,7 @@
 #
 set -euo pipefail
 
-WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfy-27/wildfly-27.0.1.Final}"
+WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 APP_DIR="${1:-$(pwd)}"
 
 # install-zeus-module.sh ile AYNI dışlama kümesi (artifactId bazında):

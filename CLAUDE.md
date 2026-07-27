@@ -26,7 +26,7 @@ Spring Boot karşılıkları:
 ## Mimari — Maven Multi-Module + Parent Zinciri
 
 ```
-spring-boot-starter-parent:3.1.3
+spring-boot-starter-parent:4.0.7
         ▲ parent
    zeus-fw  (kök: packaging=pom, <revision>, aggregator <modules>, flatten-maven-plugin)
         ▲ parent                    ▲ parent
@@ -36,7 +36,7 @@ spring-boot-starter-parent:3.1.3
                 zeus-base -logger -database -service -redis -batch  (jar)
 ```
 
-- **groupId:** `com.zeus` · **base paket:** `com.zeus.framework.<modul>` · **Java 17** · **Spring Boot 3.1.3 / Spring 6.0.11**.
+- **groupId:** `com.zeus` · **base paket:** `com.zeus.framework.<modul>` · **Java 25** · **Spring Boot 4.0.7 / Spring 7.0.x**.
 - Dış uygulamalar `<parent>` = `zeus-parent` alır; modülleri **sürüm yazmadan** bağımlılık ekler (BOM yönetir).
 
 ### Modüller

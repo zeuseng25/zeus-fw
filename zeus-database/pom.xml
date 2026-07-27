@@ -23,6 +23,17 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
+        <!-- Boot 4 modülerleşmesi: DataSourceAutoConfiguration ve HibernateJpaAutoConfiguration
+             artık spring-boot-autoconfigure'da değil; teknolojiye özel modüllerde yaşar
+             (before/after sıralama referansları için derleme bağımlılığı gerekir). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-hibernate</artifactId>
+        </dependency>
         <!-- Hedeflenen içerik: SimpleJdbcCall (spring-jdbc) + StoredProcedureQuery (spring-orm). -->
         <dependency>
             <groupId>org.springframework</groupId>
