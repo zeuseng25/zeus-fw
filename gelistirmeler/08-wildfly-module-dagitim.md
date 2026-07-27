@@ -129,3 +129,17 @@ Süreç (staging geçidi, gate'ler, rollback): `gelistirmeler/09-cve-guvenlik-ya
 2. Varsa `zeus-wildfly-module/pom.xml`'e ekle.
 3. `install-zeus-module.sh` ile module'ü yeniden üret + WildFly restart.
 4. Uygulamanın `deploy.sh`'ı ile WAR'ı deploy et.
+## com.zeus.soap — SOAP tipinin ek module'ü (özet)
+
+SOAP uygulamaları (parent: `zeus-soap-parent`) CXF yığınını AYRI bir paylaşımlı module'den alır:
+
+```bash
+./scripts/install-zeus-module.sh --module soap [--slot X] [--base-slot Y]
+```
+
+- Sözleşme: `zeus-soap-wildfly-module/pom.xml` (cxf-spring-boot-starter-jaxws; sürüm BOM'dan).
+- Jar seti = CXF kapanışı **EKSİ** com.zeus kapanışı (script küme farkı uygular → çift jar yok).
+- Üretilen module.xml `com.zeus`'a (--base-slot) bağımlıdır; slot politikası com.zeus ile aynıdır.
+- Kapsam denetimi: `verify-module-coverage.sh` SOAP uygulamalarında com.zeus ∪ com.zeus.soap birleşimine bakar.
+
+Detay: `gelistirmeler/14-uygulama-tipi-parentlar.md`.

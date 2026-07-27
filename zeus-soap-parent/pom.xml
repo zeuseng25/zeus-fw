@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-soap-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus SOAP Parent</name>
+    <description>SOAP (Apache CXF / JAX-WS) uygulamalarının parent'ı. zeus-parent'tan türer:
+        BOM, lombok, ince WAR politikası ve üretilen descriptor mekanizması miras alınır.
+        Farklar: SOAP tipi descriptor (webservices subsystem dışlaması + com.zeus.soap
+        module bağımlılığı). CXF jar'ları WAR'a GİRMEZ; paylaşımlı com.zeus.soap WildFly
+        module'ünden gelir (üretimi: scripts/install-zeus-module.sh - -module soap).
+        Sürüm politikası: hangi parent kullanılırsa kullanılsın tek ${revision}.</description>
+
+    <properties>
+        <!-- SOAP tipi descriptor şablonu (webservices dışlaması + com.zeus.soap dep). -->
+        <zeus.descriptor.dir>descriptor-soap</zeus.descriptor.dir>
+
+        <!-- com.zeus.soap module SLOT'u — com.zeus slot politikasıyla aynı kurallar
+             (platform release başına sabitlenir; bkz. 10-versiyonlu-slot dokümanı). -->
+        <zeus.soap.module.slot>main</zeus.soap.module.slot>
+    </properties>
+
+</project>

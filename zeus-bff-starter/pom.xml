@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-bff-starter</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus BFF Starter</name>
+    <description>BFF ortak başlangıç modülü: Spring Cloud Gateway Server MVC (servlet) ile
+        routing + build alınmış React (SPA) statik paketlerinin sunumu ve SPA fallback'i.
+        BFF tipi uygulamalar (parent: zeus-bff-parent, FAT WAR) bu modülü kullanır.
+        NOT: Reaktif gateway (Netty) WildFly'a WAR deploy edilemediği için servlet tabanlı
+        Gateway Server MVC kullanılır; route/filter modeli işlevsel eşdeğerdir.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+        <!-- Sürüm spring-cloud-dependencies BOM'undan (zeus-dependencies import eder). -->
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-server-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

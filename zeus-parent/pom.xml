@@ -40,6 +40,16 @@
                (gereksiz slot kopyası oluşmaz).
              Detay: gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md -->
         <zeus.module.slot>main</zeus.module.slot>
+
+        <!-- Uygulama TİPİNİN descriptor şablon dizini (zeus-war-defaults içindeki dizin adı).
+             Tip parent'ları override eder: descriptor-soap (zeus-soap-parent),
+             descriptor-bff (zeus-bff-parent). Varsayılan: standart ince-WAR REST tipi. -->
+        <zeus.descriptor.dir>descriptor-standard</zeus.descriptor.dir>
+
+        <!-- İnce WAR politikası (property üzerinden — TİP kararıdır, uygulama kararı değil):
+             standart/soap tiplerinde yalnız zeus-* jar'ları WAR'da kalır; zeus-bff-parent bu
+             property'yi BOŞALTIR (fat WAR: BFF izoledir, com.zeus module kullanmaz). -->
+        <zeus.war.packaging-excludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</zeus.war.packaging-excludes>
     </properties>
 
     <dependencyManagement>
@@ -66,9 +76,11 @@
                      %regex negatif-lookahead ile "zeus- ile başlamayan tüm jar'lar" dışlanır.
                      WAR üreten uygulamalar bu plugin'i devreye alınca otomatik uygulanır.
 
-                     ÖNEMLİ: WAR'dan 3. parti dışlama bir UYGULAMA değil FRAMEWORK kararıdır ve
-                     buradan zorlanır. Uygulamalar bu yapılandırmayı override ETMEMELİDİR (fat WAR
-                     üretmek yasak). Paylaşımlı 'com.zeus' module'ünü yalnızca framework üretir
+                     ÖNEMLİ: WAR'dan 3. parti dışlama bir UYGULAMA değil FRAMEWORK (TİP) kararıdır ve
+                     buradan zorlanır. Uygulamalar bu yapılandırmayı override ETMEMELİDİR — standart
+                     ve soap tiplerinde fat WAR üretmek yasaktır. TEK istisna framework'ün kendisidir:
+                     zeus-bff-parent, BFF tipini FRAMEWORK KARARIYLA fat WAR yapar
+                     (zeus.war.packaging-excludes boşaltılır). Paylaşımlı 'com.zeus' module'ünü yalnızca framework üretir
                      (scripts/install-zeus-module.sh); uygulamalar module oluşturamaz / module'e jar
                      ekleyemez — yalnızca kendi ince WAR'larını deploy eder.
 
@@ -80,7 +92,7 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-war-plugin</artifactId>
                     <configuration>
-                        <packagingExcludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</packagingExcludes>
+                        <packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>
                     </configuration>
                 </plugin>
 
@@ -159,7 +171,7 @@
                                             <version>${revision}</version>
                                         </artifactItem>
                                     </artifactItems>
-                                    <includes>WEB-INF/**</includes>
+                                    <includes>${zeus.descriptor.dir}/**</includes>
                                     <outputDirectory>${project.build.directory}/zeus-war-defaults</outputDirectory>
                                     <overWriteSnapshots>true</overWriteSnapshots>
                                 </configuration>
@@ -172,7 +184,8 @@
                         <configuration>
                             <webResources>
                                 <resource>
-                                    <directory>${project.build.directory}/zeus-war-defaults</directory>
+                                    <directory>${project.build.directory}/zeus-war-defaults/${zeus.descriptor.dir}</directory>
+                                    <targetPath>WEB-INF</targetPath>
                                     <filtering>true</filtering>
                                 </resource>
                             </webResources>

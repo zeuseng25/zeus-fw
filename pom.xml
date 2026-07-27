@@ -40,16 +40,25 @@
     <modules>
         <module>zeus-dependencies</module>
         <module>zeus-parent</module>
+        <!-- Uygulama TİPİNE özel parent'lar (zeus-parent'tan türerler; tek ${revision}). -->
+        <module>zeus-soap-parent</module>
+        <module>zeus-bff-parent</module>
         <module>zeus-base</module>
         <module>zeus-logger</module>
         <module>zeus-database</module>
         <module>zeus-service</module>
         <module>zeus-redis</module>
         <module>zeus-batch</module>
+        <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
+        <module>zeus-soap</module>
+        <module>zeus-bff-starter</module>
+        <module>zeus-bff-login</module>
         <!-- WAR uygulamalarına build'de enjekte edilen varsayılan deployment dosyası şablonları. -->
         <module>zeus-war-defaults</module>
-        <!-- Paylaşımlı WildFly 'com.zeus' module'ünün 3. parti bağımlılık sözleşmesi (jar üretmez). -->
+        <!-- Paylaşımlı WildFly module bağımlılık sözleşmeleri (jar üretmezler):
+             com.zeus (temel Spring yığını) + com.zeus.soap (CXF yığını). -->
         <module>zeus-wildfly-module</module>
+        <module>zeus-soap-wildfly-module</module>
     </modules>
 
     <build>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BU DOSYA FRAMEWORK TARAFINDAN ÜRETİLİR — ELLE YAZILMAZ / APP REPO'SUNDA TUTULMAZ.
+  BFF TİPİ şablon (zeus-bff-parent kullanan uygulamalar): FAT WAR — tüm 3. parti jar'lar
+  WAR içinde taşınır, paylaşımlı com.zeus module'üne BAĞIMLILIK YOKTUR (izolasyon:
+  BFF, platform module'ünün sürüm/slot yaşam döngüsünden bağımsız deploy edilir).
+  Subsystem dışlamaları standart şablonla aynıdır (logging zorunlu; diğerleri Spring
+  kullanan WAR'ın konteyner taramalarına takılmaması için).
+-->
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+    <deployment>
+        <exclude-subsystems>
+            <subsystem name="logging"/>
+            <subsystem name="weld"/>
+            <subsystem name="batch-jberet"/>
+            <subsystem name="jsf"/>
+            <subsystem name="jaxrs"/>
+        </exclude-subsystems>
+        <!-- dependencies bloğu bilinçli olarak YOK: BFF fat WAR'dır, com.zeus kullanılmaz. -->
+    </deployment>
+</jboss-deployment-structure>

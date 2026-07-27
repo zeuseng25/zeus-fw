@@ -24,6 +24,10 @@
         <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
         <!-- ojdbc17 = JDK 17+ (Java 25 dahil) için Oracle 23ai sürücü satırı. -->
         <ojdbc.version>23.9.0.25.07</ojdbc.version>
+        <!-- CXF 4.2.x = Jakarta EE 11 / Spring Framework 7 / Boot 4 uyumlu satır (SOAP tipi). -->
+        <cxf.version>4.2.2</cxf.version>
+        <!-- Oakwood (2025.1.x) = Spring Boot 4 uyumlu Spring Cloud release train (BFF tipi). -->
+        <spring-cloud.version>2025.1.2</spring-cloud.version>
     </properties>
 
     <dependencyManagement>
@@ -34,6 +38,16 @@
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
                 <version>4.0.7</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring Cloud BOM'u Boot BOM'undan SONRA import edilir (Maven kuralı: örtüşen
+                 yönetimlerde İLK import kazanır → Boot sürümleri geçerli kalır — bilinçli tercih). -->
+            <dependency>
+                <groupId>org.springframework.cloud</groupId>
+                <artifactId>spring-cloud-dependencies</artifactId>
+                <version>${spring-cloud.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -69,6 +83,21 @@
                 <artifactId>zeus-batch</artifactId>
                 <version>${revision}</version>
             </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
+                <artifactId>zeus-soap</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
+                <artifactId>zeus-bff-starter</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
+                <artifactId>zeus-bff-login</artifactId>
+                <version>${revision}</version>
+            </dependency>
 
             <!-- Ekstra 3. parti kütüphaneler (Spring Boot BOM dışı). -->
             <dependency>
@@ -80,6 +109,12 @@
                 <groupId>com.oracle.database.jdbc</groupId>
                 <artifactId>ojdbc17</artifactId>
                 <version>${ojdbc.version}</version>
+            </dependency>
+            <!-- SOAP tipi: Apache CXF (JAX-WS). Uygulamalar ve zeus-soap sürüm yazmadan kullanır. -->
+            <dependency>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-spring-boot-starter-jaxws</artifactId>
+                <version>${cxf.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

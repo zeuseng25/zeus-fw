@@ -25,7 +25,7 @@ APP_DIR="${1:-$(pwd)}"
 #  - jakarta.*-api  : WildFly server module'lerinden gelir
 #  - zeus-*         : uygulamanın WAR'ında taşınır
 #  - lombok/jarmode : runtime'da gereksiz
-EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind)-api|lombok|spring-boot-jarmode-layertools|zeus-(base|logger|database|service|redis|batch))$'
+EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+)$'
 
 cd "${APP_DIR}"
 MVN="mvn"
@@ -35,6 +35,13 @@ MVN="mvn"
 SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.module.slot -DforceStdout 2>/dev/null || true)"
 [[ -z "${SLOT}" || "${SLOT}" == "null"* ]] && SLOT="main"
 MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
+
+# SOAP tipi uygulama mı? (zeus-soap-parent, zeus.soap.module.slot property'sini tanımlar)
+# Öyleyse kapsam denetimi com.zeus ∪ com.zeus.soap birleşimine karşı yapılır.
+SOAP_SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.soap.module.slot -DforceStdout 2>/dev/null || true)"
+[[ "${SOAP_SLOT}" == "null"* ]] && SOAP_SLOT=""
+SOAP_MODULE_DIR=""
+[[ -n "${SOAP_SLOT}" ]] && SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
 
 # Üretilen-descriptor kontrolü: WAR build edilmişse içinde framework'ün ürettiği
 # jboss-deployment-structure.xml olmalı. Yoksa zeus-generated-descriptor profili devreye
@@ -97,8 +104,13 @@ while IFS= read -r line; do
         done
     fi
     [[ "${skip}" == 1 ]] && continue
-    # module'de fiziksel var mı?
-    [[ -f "${MODULE_DIR}/${jar}" ]] || missing+=("${gid}:${aid}:${ver}")
+    # module'de fiziksel var mı? (SOAP tipinde com.zeus.soap da aranır)
+    if [[ ! -f "${MODULE_DIR}/${jar}" ]]; then
+        if [[ -n "${SOAP_MODULE_DIR}" && -f "${SOAP_MODULE_DIR}/${jar}" ]]; then
+            continue
+        fi
+        missing+=("${gid}:${aid}:${ver}")
+    fi
 done < "${TMP}/deps.txt"
 
 if [[ ${#missing[@]} -gt 0 ]]; then

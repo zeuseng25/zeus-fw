@@ -13,9 +13,15 @@
 # zeus-* (framework) jar'ları da module'e KONMAZ; bunlar uygulamanın WAR'ında (WEB-INF/lib) taşınır.
 #
 # Kullanım (hedef sunucu WILDFLY_HOME ile seçilir — staging/prod ayrımı):
-#   ./scripts/install-zeus-module.sh                     # varsayılan slot: main
+#   ./scripts/install-zeus-module.sh                     # com.zeus, varsayılan slot: main
 #   ./scripts/install-zeus-module.sh --slot 1.1.0        # versiyonlu slot (com.zeus:1.1.0)
+#   ./scripts/install-zeus-module.sh --module soap       # com.zeus.soap (CXF yığını; SOAP tipi)
+#   ./scripts/install-zeus-module.sh --module soap --base-slot 1.1.0   # com.zeus referans slot'u
 #   WILDFLY_HOME=/path/staging-wildfly ./scripts/install-zeus-module.sh [--slot X]
+#
+# --module soap: zeus-soap-wildfly-module sözleşmesinin kapanışını çözer ve TEMEL com.zeus
+# kapanışında ZATEN OLAN jar'ları KÜME FARKI ile atlar (çift jar / LinkageError önlenir).
+# Üretilen module.xml, com.zeus'a (--base-slot) bağımlıdır.
 # Jar'lar Maven'den (dependency:copy-dependencies) alınır; WAR'a ihtiyaç yoktur.
 #
 # SLOT'lar (bkz. gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md):
@@ -34,20 +40,37 @@ set -euo pipefail
 
 WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 ZEUS_FW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-MODULE_BUILD_DIR="${ZEUS_FW_DIR}/zeus-wildfly-module"   # paylaşımlı module'ün bağımlılık sözleşmesi
 
-# --- Argümanlar: --slot <ad> (varsayılan: main) ---
+# --- Argümanlar: --slot <ad> (vars. main) · --module <base|soap> (vars. base) · --base-slot <ad> ---
 SLOT="main"
+MODULE_KIND="base"
+BASE_SLOT="main"   # soap module.xml'inin referans verdiği com.zeus slot'u
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --slot)   [[ $# -ge 2 ]] || { echo "HATA: --slot bir değer ister (örn. --slot 1.1.0)" >&2; exit 2; }
-                  SLOT="$2"; shift 2 ;;
-        --slot=*) SLOT="${1#--slot=}"; shift ;;
-        *) echo "HATA: bilinmeyen argüman: $1  (kullanım: $0 [--slot <ad>])" >&2; exit 2 ;;
+        --slot)        [[ $# -ge 2 ]] || { echo "HATA: --slot bir değer ister (örn. --slot 1.1.0)" >&2; exit 2; }
+                       SLOT="$2"; shift 2 ;;
+        --slot=*)      SLOT="${1#--slot=}"; shift ;;
+        --module)      [[ $# -ge 2 ]] || { echo "HATA: --module bir değer ister (base|soap)" >&2; exit 2; }
+                       MODULE_KIND="$2"; shift 2 ;;
+        --module=*)    MODULE_KIND="${1#--module=}"; shift ;;
+        --base-slot)   [[ $# -ge 2 ]] || { echo "HATA: --base-slot bir değer ister" >&2; exit 2; }
+                       BASE_SLOT="$2"; shift 2 ;;
+        --base-slot=*) BASE_SLOT="${1#--base-slot=}"; shift ;;
+        *) echo "HATA: bilinmeyen argüman: $1  (kullanım: $0 [--slot <ad>] [--module base|soap] [--base-slot <ad>])" >&2; exit 2 ;;
     esac
 done
 [[ "${SLOT}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || { echo "HATA: geçersiz slot adı: '${SLOT}'" >&2; exit 2; }
-MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
+
+# Module türü: ad, sözleşme dizini ve WildFly module yolu
+case "${MODULE_KIND}" in
+    base) MODULE_NAME="com.zeus"
+          MODULE_BUILD_DIR="${ZEUS_FW_DIR}/zeus-wildfly-module"
+          MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}" ;;
+    soap) MODULE_NAME="com.zeus.soap"
+          MODULE_BUILD_DIR="${ZEUS_FW_DIR}/zeus-soap-wildfly-module"
+          MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SLOT}" ;;
+    *) echo "HATA: geçersiz --module değeri: '${MODULE_KIND}' (base|soap)" >&2; exit 2 ;;
+esac
 
 # --- Immutability kilidi: versiyonlu slot'lar bir kez kurulur, üzerine yazılmaz ---
 # (main geriye uyumluluk için mutable; versiyonlu slot = BOM release'inin donmuş kopyası.
@@ -59,32 +82,50 @@ if [[ "${SLOT}" != "main" && -d "${MODULE_DIR}" && "${FORCE:-0}" != "1" ]]; then
     exit 3
 fi
 
-# Module'e KONMAYACAK jar'lar (WildFly server module'lerinden gelir veya gereksiz)
-EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind)-api|lombok|spring-boot-jarmode-layertools|zeus-(base|logger|database|service|redis|batch))-.*\.jar$'
+# Module'e KONMAYACAK jar'lar (WildFly server module'lerinden gelir veya gereksiz).
+# zeus-* jar'ları hiçbir paylaşımlı module'e KONMAZ (WAR'da taşınırlar) → genel kalıp.
+# xml.ws / xml.soap api'leri: WildFly server module'leri (SOAP kapanışında görülür).
+EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+)-.*\.jar$'
 
-# --- 1) Runtime bağımlılık jar'larını topla (zeus-wildfly-module sözleşmesinden) ---
+# --- 1) Runtime bağımlılık jar'larını topla (sözleşme pom'undan) ---
 # includeScope=runtime => compile+runtime; provided (tomcat) ve test hariç.
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
-echo ">> Runtime bağımlılıkları toplanıyor (zeus-wildfly-module, dependency:copy-dependencies)..."
+echo ">> Runtime bağımlılıkları toplanıyor ($(basename "${MODULE_BUILD_DIR}"), dependency:copy-dependencies)..."
 cd "${MODULE_BUILD_DIR}"
 mvn -q dependency:copy-dependencies \
     -DincludeScope=runtime \
     -DoutputDirectory="${TMP}/lib"
 
+# soap modunda: TEMEL com.zeus kapanışı da çözülür; orada zaten olan jar'lar KÜME FARKI ile
+# atlanır (aynı sınıflar iki module'de bulunursa LinkageError riski doğar).
+if [[ "${MODULE_KIND}" == "soap" ]]; then
+    echo ">> Temel (com.zeus) kapanışı çözülüyor (küme farkı için)..."
+    cd "${ZEUS_FW_DIR}/zeus-wildfly-module"
+    mvn -q dependency:copy-dependencies \
+        -DincludeScope=runtime \
+        -DoutputDirectory="${TMP}/base-lib"
+fi
+
 # --- 2) Module dizinini sıfırla ve jar'ları kopyala ---
 rm -rf "${MODULE_DIR}"
 mkdir -p "${MODULE_DIR}"
 copied=0
+skipped_base=0
 for jar in "${TMP}/lib"/*.jar; do
     base="$(basename "${jar}")"
     if [[ "${base}" =~ ${EXCLUDE_REGEX} ]]; then
+        continue
+    fi
+    if [[ "${MODULE_KIND}" == "soap" && -f "${TMP}/base-lib/${base}" ]]; then
+        skipped_base=$((skipped_base + 1))
         continue
     fi
     cp "${jar}" "${MODULE_DIR}/"
     copied=$((copied + 1))
 done
 echo ">> ${copied} jar kopyalandı -> ${MODULE_DIR}"
+[[ "${MODULE_KIND}" == "soap" ]] && echo ">> ${skipped_base} jar atlandı (temel com.zeus module'ünde zaten var)"
 
 # --- 4) Jar'lara Jandex annotation index'i göm ---
 # WildFly @HandlesTypes taraması (Spring SCI -> WebApplicationInitializer) deployment'taki
@@ -115,9 +156,9 @@ echo ">> Jandex index tamam"
     # 'slot' attribute'u KALDIRILDI; slot 'name' içinde iki noktayla yazılır (name="ad:slot").
     # main varsayılan slot olduğundan yalnız ad yazılır (bugünkü çıktı birebir korunur).
     if [[ "${SLOT}" == "main" ]]; then
-        echo '<module name="com.zeus" xmlns="urn:jboss:module:1.9">'
+        echo "<module name=\"${MODULE_NAME}\" xmlns=\"urn:jboss:module:1.9\">"
     else
-        echo "<module name=\"com.zeus:${SLOT}\" xmlns=\"urn:jboss:module:1.9\">"
+        echo "<module name=\"${MODULE_NAME}:${SLOT}\" xmlns=\"urn:jboss:module:1.9\">"
     fi
     echo '    <resources>'
     for jar in "${MODULE_DIR}"/*.jar; do
@@ -130,18 +171,31 @@ echo ">> Jandex index tamam"
     echo '        <module name="org.jboss.vfs"/>'
     # Objenesis (CGLIB proxy) sun.misc.Unsafe kullanır; java.se bunu içermez
     echo '        <module name="jdk.unsupported"/>'
-    # jakarta API'leri WildFly server module'lerinden export ile (deployment görebilsin)
-    # json + json.bind: Boot 4 http-converter autoconfig'inin @ConditionalOnClass(Jsonb)
-    # introspection'ı tip görünmeyince WARN üretiyor; api modülleri görünür olunca temiz.
-    for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind; do
-        echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
-    done
+    if [[ "${MODULE_KIND}" == "soap" ]]; then
+        # CXF, Spring/Boot sınıflarını temel module'den görür (küme farkının karşılığı).
+        if [[ "${BASE_SLOT}" == "main" ]]; then
+            echo '        <module name="com.zeus"/>'
+        else
+            echo "        <module name=\"com.zeus:${BASE_SLOT}\"/>"
+        fi
+        # SOAP'a özgü jakarta API'leri WildFly server module'lerinden export ile.
+        for m in xml.ws xml.soap xml.bind activation servlet annotation; do
+            echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
+        done
+    else
+        # jakarta API'leri WildFly server module'lerinden export ile (deployment görebilsin)
+        # json + json.bind: Boot 4 http-converter autoconfig'inin @ConditionalOnClass(Jsonb)
+        # introspection'ı tip görünmeyince WARN üretiyor; api modülleri görünür olunca temiz.
+        for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind; do
+            echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
+        done
+    fi
     echo '    </dependencies>'
     echo '</module>'
 } > "${MODULE_DIR}/module.xml"
 
 echo ">> module.xml üretildi"
-echo "✅ com.zeus:${SLOT} module kuruldu: ${MODULE_DIR}"
+echo "✅ ${MODULE_NAME}:${SLOT} module kuruldu: ${MODULE_DIR}"
 if [[ "${SLOT}" == "main" ]]; then
     echo "   NOT: main slot'u güncellendi → yüklüyse WildFly RESTART gerekir (module tanımı cache'li)."
 else

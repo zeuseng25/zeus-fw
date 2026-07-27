@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent</relativePath>
+    </parent>
+
+    <artifactId>zeus-soap-wildfly-module</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus SOAP WildFly Module (com.zeus.soap bağımlılık sözleşmesi)</name>
+    <description>
+        WildFly 'com.zeus.soap' module'üne konacak SOAP/CXF yığınının bağımlılık sözleşmesi.
+        scripts/install-zeus-module.sh - -module soap, bu sözleşmenin runtime kapanışını çözer
+        ve TEMEL com.zeus kapanışında ZATEN BULUNAN jar'ları KÜME FARKI ile dışlayarak module'ü
+        üretir (çift jar / LinkageError önlenir; provided hilesi kullanılmaz çünkü CXF, Spring
+        jar'larını kendi compile yolundan da çeker — nearest-wins belirsiz olur).
+
+        com.zeus.soap module'ü com.zeus'a bağımlıdır (module.xml'de); SOAP uygulamalarının
+        descriptor'ı (descriptor-soap) her iki module'ü de import eder.
+
+        Sürümler zeus BOM'dan gelir; burada YAZILMAZ. CVE yaması = BOM'da override.
+    </description>
+
+    <dependencies>
+        <!-- SOAP tipinin 3. parti runtime kapanışı: CXF JAX-WS starter'ı
+             (cxf-rt-frontend-jaxws, cxf-rt-transports-http, wsdl4j, saaj, ...). -->
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-spring-boot-starter-jaxws</artifactId>
+        </dependency>
+
+        <!-- Gömülü Tomcat module'e KONMAZ: CXF starter'ı (starter-web üzerinden) tomcat
+             çekiyor; provided ile alt ağacın tamamı kapanıştan düşer (zeus-wildfly-module
+             kalıbının aynısı — konteyner WildFly/Undertow). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

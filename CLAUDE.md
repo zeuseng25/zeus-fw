@@ -20,8 +20,9 @@ Spring Boot karşılıkları:
 | Spring Boot | Zeus | Görev |
 |-------------|------|-------|
 | `spring-boot-dependencies` | `zeus-dependencies` | BOM — tüm sürümler |
-| `spring-boot-starter-parent` | `zeus-parent` | Uygulamaların parent'ı — plugin/derleme yönetimi |
-| `spring-boot-*` | `zeus-base/-logger/-database/-service/-redis/-batch` | Yetenek modülleri |
+| `spring-boot-starter-parent` | `zeus-parent` | Standart (REST) uygulamaların parent'ı — plugin/derleme yönetimi |
+| — | `zeus-soap-parent` / `zeus-bff-parent` | TİP parent'ları: SOAP (CXF, ince WAR + com.zeus.soap module) / BFF (gateway, FAT WAR, izole). Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
+| `spring-boot-*` | `zeus-base/-logger/-database/-service/-redis/-batch/-soap/-bff-starter/-bff-login` | Yetenek modülleri |
 
 ## Mimari — Maven Multi-Module + Parent Zinciri
 
