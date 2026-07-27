@@ -4,3 +4,6 @@ target/
 .idea/
 *.iml
 .DS_Store
+
+# 3. parti referans malzemesi (Spring Boot wiki klonu) — repoya girmez
+spring-boot.wiki/
