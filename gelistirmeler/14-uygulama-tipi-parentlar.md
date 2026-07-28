@@ -16,6 +16,23 @@ Kalıtım zinciri: `zeus-soap-parent` ve `zeus-bff-parent` → `zeus-parent` →
 `spring-boot-starter-parent`. BOM import'u, lombok, repackage-skip, flatten ve üretilen
 descriptor mekanizması miras alınır; yalnız farklar override edilir.
 
+## Jar modülleri tip parent'larına BAĞLI DEĞİLDİR (bilinçli tasarım)
+
+`zeus-soap`, `zeus-bff-starter`, `zeus-bff-login` jar modüllerinin Maven parent'ı
+`zeus-parent`'tır — `zeus-soap-parent`/`zeus-bff-parent` DEĞİL (tıpkı zeus-redis/batch gibi).
+Nedeni: tip parent'ları yalnızca **uygulamalar** içindir; tek işleri WAR paketleme
+davranışını seçmektir (descriptor dizini, packaging-excludes). Jar modülleri WAR üretmez,
+`zeus-generated-descriptor` profili onlarda hiç devreye girmez; ihtiyaçları olan BOM +
+lombok + flatten zaten `zeus-parent`'tan gelir. Özet ayrım:
+
+> **Tip parent'ı = "uygulaman NASIL paketlenir"** · **jar modülü = "uygulamana HANGİ yetenek girer"** —
+> ikisi arasındaki bağlantıyı Maven kalıtımı değil, descriptor + WildFly module mekanizması kurar.
+
+**Yanlış kombinasyon koruması:** standart (zeus-parent) bir uygulamaya yanlışlıkla
+`zeus-soap` bağımlılığı eklenirse, CXF bağımlılıkları com.zeus module'ünde bulunamaz ve
+`verify-module-coverage.sh` bunu deploy'dan ÖNCE build aşamasında kırmızıyla yakalar
+(çözüm mesajı: SOAP kullanılacaksa parent `zeus-soap-parent`'a geçilir).
+
 ## Mekanizma: property ile tip seçimi
 
 `zeus-parent` iki property'yi genelleştirir; tip parent'ları yalnız bunları override eder:
