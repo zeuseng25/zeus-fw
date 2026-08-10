@@ -49,6 +49,8 @@
         <module>zeus-service</module>
         <module>zeus-redis</module>
         <module>zeus-batch</module>
+        <!-- LLM erişimi (Spring AI 2.x, OpenAI-uyumlu endpoint: vLLM / LiteLLM / OpenRouter). -->
+        <module>zeus-ai</module>
         <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
         <module>zeus-soap</module>
         <module>zeus-bff-starter</module>

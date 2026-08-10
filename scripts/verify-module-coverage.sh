@@ -88,14 +88,30 @@ while IFS= read -r line; do
     # ANSI temizle + baştaki boşluk
     line="$(printf '%s' "${line}" | sed 's/\x1b\[[0-9;]*m//g; s/^[[:space:]]*//')"
     # format: groupId:artifactId:jar:version:scope [ -- module ...]
+    # CLASSIFIER'LI artefaktta bir alan FAZLADIR:
+    #   groupId:artifactId:jar:classifier:version:scope   (ör. netty native transport'lar)
+    # Alan sayısını saymadan sürümü hep 4. alandan okumak, classifier'lı jar'ları
+    # "module'de yok" diye yanlış raporlar (jar adı da yanlış kurulur).
     [[ "${line}" =~ ^[^:]+:[^:]+:[^:]+:[^:]+:[^:[:space:]]+ ]] || continue
-    gid="$(printf '%s' "${line}" | cut -d: -f1)"
-    aid="$(printf '%s' "${line}" | cut -d: -f2)"
-    ver="$(printf '%s' "${line}" | cut -d: -f4)"
+    coords="$(printf '%s' "${line}" | awk '{print $1}')"   # ' -- module ...' ekini at
+    nf="$(printf '%s' "${coords}" | awk -F: '{print NF}')"
+    gid="$(printf '%s' "${coords}" | cut -d: -f1)"
+    aid="$(printf '%s' "${coords}" | cut -d: -f2)"
+    cls=""
+    if [[ "${nf}" -ge 6 ]]; then
+        cls="$(printf '%s' "${coords}" | cut -d: -f4)"
+        ver="$(printf '%s' "${coords}" | cut -d: -f5)"
+    else
+        ver="$(printf '%s' "${coords}" | cut -d: -f4)"
+    fi
     [[ -z "${aid}" || -z "${ver}" ]] && continue
     # module'de olmayan küme (jakarta/zeus/lombok/jarmode) → atla
     [[ "${aid}" =~ ${EXCLUDE_REGEX} ]] && continue
-    jar="${aid}-${ver}.jar"
+    if [[ -n "${cls}" ]]; then
+        jar="${aid}-${ver}-${cls}.jar"
+    else
+        jar="${aid}-${ver}.jar"
+    fi
     # zeus.war.keep ile WAR'a bundle edilenler → atla
     skip=0
     if [[ ${#KEEP_PREFIXES[@]} -gt 0 ]]; then
@@ -109,7 +125,11 @@ while IFS= read -r line; do
         if [[ -n "${SOAP_MODULE_DIR}" && -f "${SOAP_MODULE_DIR}/${jar}" ]]; then
             continue
         fi
-        missing+=("${gid}:${aid}:${ver}")
+        if [[ -n "${cls}" ]]; then
+            missing+=("${gid}:${aid}:${ver}:${cls}")
+        else
+            missing+=("${gid}:${aid}:${ver}")
+        fi
     fi
 done < "${TMP}/deps.txt"
 

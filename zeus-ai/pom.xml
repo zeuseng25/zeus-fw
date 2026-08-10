@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-ai</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus AI</name>
+    <description>Spring AI 2.x üzerine kurumsal LLM erişim modülü: tek ChatClient sözleşmesi
+        (sohbet + yapılandırılmış çıktı + tool calling), ortak sistem promptu, hata → ProblemDetail
+        dönüşümü. Model sağlayıcı OpenAI-uyumlu endpoint'tir (vLLM / LiteLLM / OpenAI / OpenRouter).</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- OpenAI-UYUMLU TRANSPORT (platform kararı):
+             Kurumda model vLLM ile self-host edilir; vLLM, LiteLLM, OpenRouter ve OpenAI'ın
+             tamamı aynı /v1/chat/completions sözleşmesini konuşur. Bu yüzden framework tek bir
+             starter'a bağlanır ve hedef YALNIZCA spring.ai.openai.base-url ile değişir.
+             (Sağlayıcı gerçekten değişirse: uygulama kendi starter'ını ekler; zeus-ai'nin
+             ChatClient soyutlaması aynen çalışır.) -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>

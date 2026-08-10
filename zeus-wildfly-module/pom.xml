@@ -52,6 +52,14 @@
             <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
         </dependency>
 
+        <!-- Spring AI (zeus-ai modülünün 3. parti kapanışı): spring-ai-client-chat, spring-ai-model,
+             spring-ai-openai, openai-java SDK, autoconfigure'lar ve reactor/ST bağımlılıkları.
+             zeus-ai'nin KENDİ jar'ı buraya GİRMEZ — o zeus-* olduğu için WAR içinde taşınır. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>
+
         <!-- Gömülü Tomcat module'e KONMAZ: WildFly servlet konteyneri (Undertow) kullanılır.
              Boot 4'te de starter-webmvc varsayılan olarak starter-tomcat çeker; provided scope
              ile tüm alt ağacı (starter-tomcat-runtime, spring-boot-tomcat, tomcat-embed-core/

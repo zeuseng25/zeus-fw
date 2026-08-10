@@ -22,7 +22,7 @@ Spring Boot karşılıkları:
 | `spring-boot-dependencies` | `zeus-dependencies` | BOM — tüm sürümler |
 | `spring-boot-starter-parent` | `zeus-parent` | Standart (REST) uygulamaların parent'ı — plugin/derleme yönetimi |
 | — | `zeus-soap-parent` / `zeus-bff-parent` | TİP parent'ları: SOAP (CXF, ince WAR + com.zeus.soap module) / BFF (gateway, FAT WAR, izole). Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
-| `spring-boot-*` | `zeus-base/-logger/-database/-service/-redis/-batch/-soap/-bff-starter/-bff-login` | Yetenek modülleri |
+| `spring-boot-*` | `zeus-base/-logger/-database/-service/-ai/-redis/-batch/-soap/-bff-starter/-bff-login` | Yetenek modülleri |
 
 ## Mimari — Maven Multi-Module + Parent Zinciri
 
@@ -48,6 +48,7 @@ spring-boot-starter-parent:4.0.7
 | logger | `zeus-logger` | ✅ gerçek | `RequestLoggingFilter` (her istek loglanır) |
 | database | `zeus-database` | ✅ gerçek | `StoredProcedureExecutor` (JDBC, önbellekli) + `JpaStoredProcedureExecutor` |
 | service | `zeus-service` | ✅ gerçek | `AbstractCrudService` + `DtoMapper` |
+| ai | `zeus-ai` | ✅ gerçek | `ZeusAiAssistant` (sohbet + yapılandırılmış çıktı + tool calling) — Spring AI 2.x, OpenAI-uyumlu endpoint (vLLM/LiteLLM/OpenRouter). Bkz. `gelistirmeler/15-zeus-ai.md` |
 | redis | `zeus-redis` | 🚧 iskelet | RedisTemplate/cache (planlanan) |
 | batch | `zeus-batch` | 🚧 iskelet | Spring Batch job/step (planlanan) |
 | war-defaults | `zeus-war-defaults` | ✅ gerçek | WAR uygulamalarına build'de enjekte edilen `jboss-deployment-structure.xml` **şablonu** (slot yer tutuculu). Uygulamalar bu dosyayı elle yazmaz; zeus-parent'ın `zeus-generated-descriptor` profili üretir. Bkz. `gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md`. |

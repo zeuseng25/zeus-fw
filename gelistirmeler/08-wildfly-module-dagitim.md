@@ -80,6 +80,17 @@ kriptik bir hatayla. Bu uçurumu deploy'dan ÖNCE yakalamak için:
 - Her uygulamanın **`deploy.sh`'ı bu kontrolü WAR'ı kopyalamadan önce çağırır** (module kuruluysa). Kapsam
   dışı dep varsa deploy hiç başlamaz. `SKIP_COVERAGE=1` ile atlanabilir.
 
+> **Denetimin SINIRI (zeus-ai eklenirken öğrenildi):** bu kontrol "jar module'de var mı?" sorusunu
+> cevaplar, "sınıflar **link olur mu**?" sorusunu cevaplayamaz. Module'e yeni bir Spring modülü
+> girdiğinde (ör. Spring AI ile gelen `spring-webflux`), o modülün ihtiyaç duyduğu **jakarta API
+> module'leri** de üretilen module.xml'in `<dependencies>` listesinde olmalıdır — yoksa deploy
+> POST_MODULE anotasyon taramasında `NoClassDefFoundError` ile düşer (yaşanan örnek:
+> `jakarta.websocket.Endpoint`). Ayrıntı: `15-zeus-ai.md`.
+>
+> Ayrıca aynı turda düzeltilen bir script hatası: `dependency:list` çıktısında **classifier'lı**
+> artefaktlar bir alan fazladır (`gid:aid:jar:classifier:version:scope`); sürümü sabit 4. alandan
+> okumak netty native transport'larını yanlışlıkla "eksik" gösteriyordu.
+
 Böylece "BOM'da var → her yerde çalışır" yanılgısı, geç ve kriptik bir runtime hatası yerine erken ve
 çözümü söyleyen bir deploy hatasına dönüşür; aynı zamanda `zeus-wildfly-module`'ün app'lerin gerisinde
 kalmasının (drift) otomatik güvenlik ağıdır.

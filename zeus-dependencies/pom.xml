@@ -28,6 +28,10 @@
         <cxf.version>4.2.2</cxf.version>
         <!-- Oakwood (2025.1.x) = Spring Boot 4 uyumlu Spring Cloud release train (BFF tipi). -->
         <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <!-- Spring AI 2.x = Boot 4 / Framework 7 / Jackson 3 uyumlu satır. 1.x Boot 3.5'e bağlıdır
+             ve Boot 4 context'inde YÜKLENMEZ; ayrıca 1.x Haziran 2026'da EOL oldu.
+             Gerekçe: ../spring-wildfly-arch/gelistirmeler/17-spring-ai-surum-secimi.md -->
+        <spring-ai.version>2.0.0</spring-ai.version>
     </properties>
 
     <dependencyManagement>
@@ -48,6 +52,16 @@
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
                 <version>${spring-cloud.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- Spring AI BOM: spring-ai-* artefaktlarının sürümlerini yönetir. Boot BOM'undan
+                 SONRA import edilir (örtüşme yok; Spring AI kendi artefaktlarını yönetir). -->
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -81,6 +95,11 @@
             <dependency>
                 <groupId>com.zeus</groupId>
                 <artifactId>zeus-batch</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
+                <artifactId>zeus-ai</artifactId>
                 <version>${revision}</version>
             </dependency>
             <dependency>

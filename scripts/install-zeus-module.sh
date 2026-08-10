@@ -186,7 +186,10 @@ echo ">> Jandex index tamam"
         # jakarta API'leri WildFly server module'lerinden export ile (deployment görebilsin)
         # json + json.bind: Boot 4 http-converter autoconfig'inin @ConditionalOnClass(Jsonb)
         # introspection'ı tip görünmeyince WARN üretiyor; api modülleri görünür olunca temiz.
-        for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind; do
+        # websocket: module'e spring-webflux girdiğinde (zeus-ai / Spring AI reactor zinciri)
+        # POST_MODULE anotasyon taraması StandardWebSocketHandlerAdapter'ı link etmeye çalışır;
+        # jakarta.websocket.Endpoint görünmezse deploy NoClassDefFoundError ile DÜŞER.
+        for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind websocket; do
             echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
         done
     fi
