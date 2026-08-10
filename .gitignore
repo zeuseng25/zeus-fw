@@ -7,3 +7,6 @@ target/
 
 # 3. parti referans malzemesi (Spring Boot wiki klonu) — repoya girmez
 spring-boot.wiki/
+
+# Office geçici/kilit dosyaları (dosya açıkken oluşur)
+~$*
