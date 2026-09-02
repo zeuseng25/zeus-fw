@@ -13,7 +13,23 @@ ile sürümlenir — hangi parent kullanılırsa kullanılsın versiyon TEKTİR.
 | **BFF** (gateway + React) | `zeus-bff-parent` | **FAT WAR** (~23 MB) | **YOK** (izole) | + `zeus-bff-starter`, `zeus-bff-login` |
 | **Standalone** (izolasyon gerektiren servis) | `zeus-standalone-parent` | **SELF-CONTAINED WAR** | **YOK** (izole) | ihtiyaca göre |
 
-Kalıtım zinciri: `zeus-soap-parent` ve `zeus-bff-parent` → `zeus-parent` → `zeus-fw` →
+## Her tip için çalışan örnek proje
+
+Her parent tipinin `zeus-fw` ile aynı dizinde, deploy edilip doğrulanmış bir örneği vardır:
+
+| Tip | Örnek proje | WAR |
+|---|---|---|
+| Standart REST | `../spring-wildfly-arch` | ince, ~79 KB |
+| SOAP | `../zeus-sample-soap` | ince, 3 zeus jar + `com.zeus` & `com.zeus.soap` |
+| BFF | `../zeus-sample-bff` | **fat**, ~24 MB, module yok |
+| Standalone | `../zeus-sample-standalone` | **self-contained**, ~16 MB, module yok |
+
+Her birinin `README.md`'si ne gösterdiğini, çalıştırma adımlarını ve o tipe özgü tuzakları
+anlatır. Yeni bir uygulama açarken en yakın örneği kopyalamak, parent'ı elle kurmaktan
+güvenlidir (ör. `src/main/webapp/` dizini olmadan `zeus-generated-descriptor` profili
+devreye girmez ve descriptor hiç üretilmez).
+
+Kalıtım zinciri: `zeus-soap-parent`, `zeus-bff-parent` ve `zeus-standalone-parent` → `zeus-parent` → `zeus-fw` →
 `spring-boot-starter-parent`. BOM import'u, lombok, repackage-skip, flatten ve üretilen
 descriptor mekanizması miras alınır; yalnız farklar override edilir.
 
