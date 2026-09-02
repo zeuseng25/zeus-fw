@@ -8,5 +8,8 @@ target/
 # 3. parti referans malzemesi (Spring Boot wiki klonu) — repoya girmez
 spring-boot.wiki/
 
+# Kurum içi bağımlılık envanteri / analiz promptu — repoya girmez, push edilmez
+gelistirmeler/bagimlilik-analiz-promptu.md
+
 # Office geçici/kilit dosyaları (dosya açıkken oluşur)
 ~$*

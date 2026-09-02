@@ -3,9 +3,11 @@ package com.zeus.framework.soap;
 import org.apache.cxf.Bus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.InitializingBean;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
 
@@ -35,5 +37,22 @@ public class ZeusSoapAutoConfiguration {
     @ConditionalOnMissingBean
     public ZeusSoapEndpointRegistrar zeusSoapEndpointRegistrar(Bus bus, ApplicationContext context) {
         return new ZeusSoapEndpointRegistrar(bus, context);
+    }
+
+    /**
+     * Correlation ID'yi SOAP hattına bağlar: gelen isteklerde kurar, giden çağrılarda taşır.
+     *
+     * <p>Interceptor'lar {@link Bus}'a eklendiği için hem {@code @WebService} sunucu
+     * uçlarında hem de CXF istemcilerinde geçerlidir.
+     */
+    @Bean
+    @ConditionalOnProperty(prefix = "zeus.correlation", name = "enabled", havingValue = "true",
+            matchIfMissing = true)
+    public InitializingBean zeusSoapCorrelationInterceptors(Bus bus) {
+        return () -> {
+            bus.getInInterceptors().add(new CorrelationIdSoapInterceptors.Inbound());
+            bus.getOutInterceptors().add(new CorrelationIdSoapInterceptors.Outbound());
+            log.info("Zeus SOAP: correlation ID interceptor'ları CXF Bus'a eklendi.");
+        };
     }
 }

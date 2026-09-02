@@ -1,5 +1,7 @@
 package com.zeus.framework.database.sp;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.simple.SimpleJdbcCall;
@@ -18,6 +20,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class JdbcStoredProcedureExecutor implements StoredProcedureExecutor {
 
+    /**
+     * İzleme izi: her stored procedure çağrısı DEBUG seviyesinde loglanır. Satır, aktif
+     * correlation ID ile basıldığı için isteğin veri erişim adımı da zincirde görünür
+     * ({@code logging.level.com.zeus.framework.database=DEBUG} ile açılır).
+     */
+    private static final Logger log = LoggerFactory.getLogger(JdbcStoredProcedureExecutor.class);
+
     private final DataSource dataSource;
     private final Map<String, SimpleJdbcCall> cache = new ConcurrentHashMap<>();
 
@@ -32,6 +41,7 @@ public class JdbcStoredProcedureExecutor implements StoredProcedureExecutor {
         SimpleJdbcCall call = cache.computeIfAbsent(
                 catalogName + "." + procedureName + "#" + cursorName,
                 k -> baseCall(catalogName, procedureName).returningResultSet(cursorName, rowMapper));
+        log.debug("SP query: {}.{} (cursor={})", catalogName, procedureName, cursorName);
         Map<String, Object> out = call.execute(new MapSqlParameterSource(inParams));
         return (List<T>) out.getOrDefault(cursorName, List.of());
     }
@@ -41,6 +51,7 @@ public class JdbcStoredProcedureExecutor implements StoredProcedureExecutor {
         SimpleJdbcCall call = cache.computeIfAbsent(
                 catalogName + "." + procedureName,
                 k -> baseCall(catalogName, procedureName));
+        log.debug("SP execute: {}.{}", catalogName, procedureName);
         return call.execute(new MapSqlParameterSource(inParams));
     }
 

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BU DOSYA FRAMEWORK TARAFINDAN ÜRETİLİR — ELLE YAZILMAZ / APP REPO'SUNDA TUTULMAZ.
+
+  STANDALONE TİPİ şablon (zeus-standalone-parent kullanan uygulamalar):
+  SELF-CONTAINED WAR — tüm 3. parti VE zeus-* jar'ları WAR içinde taşınır; paylaşımlı
+  com.zeus module'üne BAĞIMLILIK YOKTUR. Uygulama, module'ün kurulu olmadığı bir
+  WildFly'a da deploy edilebilir ve kendi kütüphane sürümlerini platform slot
+  rollout'undan bağımsız yamalayabilir (güvenlik bileşenleri için istenen davranış).
+
+  descriptor-bff ile bugün AYNI içeriğe sahiptir; yine de ayrı tutulur çünkü iki tip
+  farklı gerekçelerle izoledir (BFF: gateway + fat WAR tercihi; standalone: classloader
+  izolasyonu ihtiyacı) ve birbirinden bağımsız evrilebilmeleri gerekir. Şablonu
+  paylaştırmak, birinde yapılacak değişikliği sessizce diğerine dayatırdı.
+
+  Subsystem dışlamaları standart şablonla aynıdır:
+  - logging : WildFly kendi log manager'ını dayatmasın (Spring Boot Logback kullanır).
+  - weld / batch-jberet / jsf / jaxrs : kullanılmayan subsystem'ler deployment'ı tarayıp
+    link etmeye çalışıp hata vermesin (Spring DI + MVC kullanılır).
+-->
+<jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
+    <deployment>
+        <exclude-subsystems>
+            <subsystem name="logging"/>
+            <subsystem name="weld"/>
+            <subsystem name="batch-jberet"/>
+            <subsystem name="jsf"/>
+            <subsystem name="jaxrs"/>
+        </exclude-subsystems>
+        <!-- dependencies bloğu bilinçli olarak YOK: WAR self-contained'dir, com.zeus kullanılmaz. -->
+    </deployment>
+</jboss-deployment-structure>

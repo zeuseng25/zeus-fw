@@ -25,12 +25,57 @@
         ihtiyaç duyuyorsa o bağımlılık BURAYA eklenmeli, sonra module yeniden üretilmelidir
         (aksi halde o uygulama WildFly'da NoClassDefFoundError alır).
 
+        Sözleşme İKİ kaynaktan beslenir:
+        (1) zeus-* modülleri bağımlılık olarak alınır → 3. parti kapanışları OTOMATİK gelir
+            (zeus jar'larının kendisi EXCLUDE_REGEX ile atılır; onlar WAR'da taşınır),
+        (2) hiçbir zeus modülünün getirmediği yığın (ör. springdoc) elle sayılır.
+
         Sürümler zeus BOM'dan gelir; burada YAZILMAZ. CVE yaması = zeus-dependencies BOM'da override.
         Detay: zeus-fw/gelistirmeler/08-wildfly-module-dagitim.md
     </description>
 
     <dependencies>
-        <!-- ================= Paylaşımlı module'e girecek 3. parti runtime kapanışı =================
+        <!-- ═══════════ 1) ZEUS MODÜLLERİ — 3. parti kapanışlarını OTOMATİK getirsin diye ═══════════
+             Buradaki amaç zeus jar'larını module'e koymak DEĞİL: install-zeus-module.sh jar
+             kopyalarken EXCLUDE_REGEX ile 'zeus-*' (ve lombok, jakarta.*-api) jar'larını atar —
+             zeus jar'ları WAR'da taşınır. Bu bağımlılıkların TEK işlevi, modüllerin 3. parti
+             kapanışını (slf4j, spring-web, spring-orm, spring-ai, ...) module'e taşımaktır.
+
+             NEDEN: Önceden burada yalnızca Boot starter'ları elle sayılıyordu. Bir zeus modülüne
+             yeni bir 3. parti kütüphane eklendiğinde onu BURAYA da elle aynalamak gerekiyordu;
+             unutulursa uygulama WildFly'da NoClassDefFoundError alıyordu. Artık kapanış
+             modülün kendi pom'undan türüyor — elle senkron tutma ihtiyacı ortadan kalktı. -->
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-logger</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-database</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-service</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-ai</artifactId>
+        </dependency>
+
+        <!-- BİLEREK YOK: zeus-redis (+50 artefakt: lettuce/jedis) ve zeus-batch (+33 artefakt:
+             spring-batch-core/infrastructure). İkisi de iskelet ve HİÇBİR uygulama kullanmıyor;
+             paylaşımlı module'e girmeleri, onları kullanmayan tüm uygulamalara restart lockstep
+             maliyeti bindirir. Bir uygulama zeus-redis/zeus-batch kullanmaya başladığında
+             verify-module-coverage.sh deploy'dan önce kırar; çözüm buraya tek satır eklemektir.
+
+             zeus-soap BURAYA GİRMEZ: CXF yığını ayrı com.zeus.soap module'üne aittir
+             (zeus-soap-wildfly-module). zeus-bff-* de girmez: BFF fat WAR'dır, izoledir. -->
+
+        <!-- ═══════════ 2) Uygulamaların doğrudan kullandığı, zeus modüllerinde OLMAYAN yığın ═══════════
              zeus-* modülleri BURAYA KONMAZ (WAR içinde taşınır; install script zaten dışlar).
              Aşağıdaki starter'lar spring-wildfly-arch'ın runtime 3. parti bağımlılıklarını yansıtır. -->
         <!-- Boot 4 modülerleşmesi: starter-web'in yerini starter-webmvc aldı

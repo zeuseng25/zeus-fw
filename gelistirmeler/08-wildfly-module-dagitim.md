@@ -107,6 +107,57 @@ halde o uygulama WildFly'da `NoClassDefFoundError` alır. (Bugün tek tüketen `
 olduğundan içerik onun runtime starter'larını yansıtır: web, validation, data-jpa, springdoc;
 gömülü Tomcat `provided` ile dışlanır — WildFly Undertow kullanır.)
 
+**Sözleşme iki kaynaktan beslenir** (2026-08-28'den beri):
+
+1. **Zeus modülleri — otomatik.** `zeus-wildfly-module`, `zeus-base` / `-logger` / `-database` /
+   `-service` / `-ai` modüllerini bağımlılık olarak alır. Amaç zeus jar'larını module'e koymak
+   DEĞİL (`install-zeus-module.sh` `EXCLUDE_REGEX` ile `zeus-*` jar'larını atar; onlar WAR'da
+   taşınır) — tek işlevi bu modüllerin **3. parti kapanışını** module'e taşımaktır. Böylece bir
+   zeus modülüne yeni bir kütüphane eklendiğinde burayı elle aynalama ihtiyacı kalmaz.
+   Doğrulama: `slf4j-api` artık `zeus-base` üzerinden, `spring-orm` `zeus-database` üzerinden
+   çözülüyor (`mvn -pl zeus-wildfly-module dependency:tree -Dincludes=org.slf4j:slf4j-api`).
+2. **Uygulamaların doğrudan kullandığı yığın — elle.** Hiçbir zeus modülünün getirmediği
+   şeyler (ör. `springdoc`) burada açıkça sayılır.
+
+`zeus-redis` ve `zeus-batch` **bilerek dışarıdadır** (+50 ve +33 artefakt; ikisi de iskelet ve
+tüketeni yok — paylaşımlı module'e girmeleri, kullanmayan tüm uygulamalara restart lockstep
+maliyeti bindirir). `zeus-soap` da girmez: CXF yığını ayrı `com.zeus.soap` module'üne aittir.
+
+**Module'e hiç bağlanmayan uygulamalar.** Birleşim kuralının doğal sınırı şudur: yalnız bir
+uygulamanın kullandığı ve module'e konsa herkese dayatılacak kütüphaneler (tipik olarak
+auth/authorization server'ın Spring Security + JOSE yığını). Böyle bir uygulama
+`zeus-standalone-parent`'ı seçer: self-contained WAR üretir, descriptor'da `com.zeus`
+bağımlılığı olmaz ve module'ün **kurulu olmadığı** bir WildFly'a bile deploy edilir
+(doğrulandı). `verify-module-coverage.sh` bu uygulamalarda denetimi atlar. Seçim kriteri:
+`14-uygulama-tipi-parentlar.md` → "Standalone hattı".
+
+**Oracle sürücüsü — kapanışa girer ama module'e GİRMEZ.** `zeus-database`, `ojdbc17`'yi
+compile scope'ta bildirir; amaç uygulamaların sürücüyü tekrar tekrar yazmaması ve `local`
+profilin (embedded Tomcat, doğrudan JDBC) hiçbir ek bildirim olmadan çalışmasıdır. Sürücünün
+`com.zeus`'a kopyalanması ise YASAK: WildFly'ın kendi `com.oracle.ojdbc` module'ü datasource'a
+bağlıdır; ikinci bir kopya olursa JNDI'dan gelen `Connection` bir classloader'ın sınıfı,
+uygulamanın gördüğü tip diğerininki olur → `ClassCastException`/`LinkageError`. Bu yüzden
+`ojdbc[0-9]+|orai18n|ucp[0-9]+`, her iki scriptin `EXCLUDE_REGEX`'inde `jakarta.*-api` ile
+aynı muameleyi görür. Sürücünün yolculuğu: **compile'da var → WAR'da yok → module'de yok →
+WildFly'da sunucunun module'ünden**.
+
+**Module geniştir, uygulama dardır — daraltma uygulamanın işidir.** Module tüm uygulamaların
+birleşimi olduğu için, bir uygulama kullanmadığı yeteneklerin jar'larını da classpath'inde
+görür ve **Spring Boot onları otomatik yapılandırmaya çalışır**. Veritabanı kullanmayan bir
+uygulama `Failed to determine a suitable driver class`, AI kullanmayan bir uygulama
+`At least one credential source must be specified` ile deploy'da düşer. Çözüm uygulamada:
+
+```properties
+spring.autoconfigure.exclude=\
+  org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,\
+  org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+```
+
+(ya da ilgili yeteneğin beklediği minimum property'yi vermek). Bu, ince WAR modelinin
+kaçınılmaz bedelidir; module'ü uygulama başına daraltmak paylaşımlılığı bozardı.
+
+Detay ve yenileme prosedürü: `17-module-yenileme-runbook.md`.
+
 ## Üretim — `scripts/install-zeus-module.sh`
 
 ```bash

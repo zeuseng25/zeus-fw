@@ -31,7 +31,7 @@ mvn clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
 <parent>
     <groupId>com.zeus</groupId>
     <artifactId>zeus-parent</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
     <relativePath/>
 </parent>
 

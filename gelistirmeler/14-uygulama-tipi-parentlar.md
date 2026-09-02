@@ -11,6 +11,7 @@ ile sürümlenir — hangi parent kullanılırsa kullanılsın versiyon TEKTİR.
 | **Standart REST** | `zeus-parent` | ince WAR (~50 KB) | `com.zeus` | zeus-base/logger/database/service |
 | **SOAP** (Apache CXF) | `zeus-soap-parent` | ince WAR | `com.zeus` **+ `com.zeus.soap`** | + `zeus-soap` |
 | **BFF** (gateway + React) | `zeus-bff-parent` | **FAT WAR** (~23 MB) | **YOK** (izole) | + `zeus-bff-starter`, `zeus-bff-login` |
+| **Standalone** (izolasyon gerektiren servis) | `zeus-standalone-parent` | **SELF-CONTAINED WAR** | **YOK** (izole) | ihtiyaca göre |
 
 Kalıtım zinciri: `zeus-soap-parent` ve `zeus-bff-parent` → `zeus-parent` → `zeus-fw` →
 `spring-boot-starter-parent`. BOM import'u, lombok, repackage-skip, flatten ve üretilen
@@ -37,10 +38,10 @@ lombok + flatten zaten `zeus-parent`'tan gelir. Özet ayrım:
 
 `zeus-parent` iki property'yi genelleştirir; tip parent'ları yalnız bunları override eder:
 
-| Property | zeus-parent (standart) | zeus-soap-parent | zeus-bff-parent |
-|---|---|---|---|
-| `zeus.descriptor.dir` | `descriptor-standard` | `descriptor-soap` | `descriptor-bff` |
-| `zeus.war.packaging-excludes` | ince WAR regex'i | (miras — ince WAR) | **BOŞ** (fat WAR) |
+| Property | zeus-parent (standart) | zeus-soap-parent | zeus-bff-parent | zeus-standalone-parent |
+|---|---|---|---|---|
+| `zeus.descriptor.dir` | `descriptor-standard` | `descriptor-soap` | `descriptor-bff` | `descriptor-standalone` |
+| `zeus.war.packaging-excludes` | ince WAR regex'i | (miras — ince WAR) | **BOŞ** (fat WAR) | **BOŞ** (self-contained) |
 
 Descriptor şablonları `zeus-war-defaults/src/main/resources/` altında tip başına ayrı
 dizindedir; `zeus-generated-descriptor` profili `${zeus.descriptor.dir}`'i unpack edip
@@ -53,7 +54,109 @@ REDDEDİLDİ — okunmaz/kırılgandır; ayrı dosyalar diff'lenebilir.)
 - **descriptor-bff** farkları: `<dependencies>` bloğu YOK (com.zeus kullanılmaz); subsystem
   dışlamaları standartla aynı.
 
-## SOAP hattı (Apache CXF 4.2.2)
+## Standalone hattı — ne zaman seçilir
+
+`zeus-standalone-parent`, `com.zeus` module'üne **hiç bağlanmayan** self-contained WAR üretir.
+Tüm runtime kapanışı (zeus-* jar'ları dahil) `WEB-INF/lib`'dedir; descriptor'da `com.zeus`
+bağımlılığı yoktur, subsystem dışlamaları kalır.
+
+**Seçim kriteri — üçü de doğruysa standalone'a geç:**
+
+1. Uygulamanın kütüphaneleri paylaşımlı module'e **girmemeli** (yalnız o uygulama kullanıyor
+   ve module'e konsa tüm uygulamalara dayatılırdı — bkz. `08`'deki birleşim kuralı).
+2. Uygulama kendi sürümlerini **platform slot rollout'undan bağımsız** yamalayabilmeli
+   (tipik olarak güvenlik bileşenleri: auth/authorization server).
+3. Kısmi çözüm yetmiyor: `zeus.war.keep` yalnız önek bazlı bundling yapar; Spring ailesinin
+   bir kısmı WAR'da bir kısmı module'de kalırsa **classloader bölünmesi** oluşur.
+
+Üçüncü madde teorik değil, ölçülmüş bir kısıttır: `com.zeus` module classloader'ı WAR'ın
+`WEB-INF/lib`'ini göremez. Bu yüzden module'deki `spring-boot`, WAR'daki
+`META-INF/spring.factories`'i bulamaz ve `EnvironmentPostProcessor` hiç çalışmaz
+(bkz. `18-correlation-id.md` → "ZeusServletInitializer neden var"). Kısmi bundling bu
+sınırın yanlış tarafında kalır; standalone'da ise böyle bir bölünme yoktur.
+
+**Bedeli:** her standalone WAR kendi Spring yığınını taşır (~16 MB) ve kendi heap'ine
+yükler. CVE yaması module rollout'u yerine "BOM'da sürüm bump → WAR rebuild → redeploy"
+olur — sürüm kaynağı yine tek (`zeus-dependencies`), yalnız dağıtım kanalı farklıdır.
+Bu yüzden **varsayılan değildir**: yeni uygulamalar `zeus-parent` ile başlar, standalone
+bilinçli ve gerekçeli bir seçimdir.
+
+**BFF ile ilişkisi:** ikisi de izoledir ve bugün descriptor içerikleri aynıdır, ama
+şablonları (`descriptor-bff` / `descriptor-standalone`) **ayrı tutulur**. Gerekçeleri
+farklıdır (BFF: gateway + fat WAR tercihi; standalone: classloader izolasyonu ihtiyacı) ve
+birinde yapılacak bir değişikliğin diğerine sessizce dayatılmaması gerekir.
+
+**Kapsam denetimi:** `verify-module-coverage.sh`, `zeus.war.packaging-excludes` boşsa
+denetimi atlar ve bunu ekrana yazar. Kontrol parent adına değil **politika property'sine**
+bakar; böylece her izole tip (BFF dahil) otomatik kapsanır.
+
+## Neden `zeus-parent-base` ara katmanı YOK (2026-09-02 kararı)
+
+Tip parent'larının hepsi `zeus-parent`'tan türer — kökten (`zeus-fw`) değil. İzole tipler
+(`bff`, `standalone`) `zeus-parent`'ın ince WAR politikasını ezdiği için "politikayı ortak
+atadan çıkarıp bir `zeus-parent-base`'e taşıyalım" önerisi düzenli olarak gündeme geliyor.
+**Bugün için reddedildi**; gerekçe aşağıda, ki aynı tartışma sıfırdan başlamasın.
+
+### Kökten türetmek neden olmaz
+
+`zeus-fw` kökü yalnızca şunları verir: `spring-boot-starter-parent`, `revision`,
+`java.version`, `oracle-database.version`, encoding, flatten. Asıl altyapı `zeus-parent`'ın
+~270 satırındadır: **zeus BOM import'u**, `spring-boot-starter-test`, pluginManagement
+(compiler/lombok, repackage-skip, surefire + Mockito agent, dependency-plugin) ve en
+kritiği **`zeus-generated-descriptor` profili** — descriptor'ı üreten makine. İzole tipler
+descriptor'ı *farklı şablondan* ama *aynı mekanizmayla* üretir.
+
+Kökten türeyen bir tip parent'ı bunların ~200 satırını kopyalamak zorunda kalırdı.
+50+ uygulamalı bir platformda kopyalama, sürüm/politika drift'inin başladığı yerdir:
+ör. Mockito javaagent düzeltmesi iki parent'ta ayrı ayrı yapılıp sonsuza kadar senkron
+tutulmalıydı.
+
+### Base ayrımı neden (henüz) gerekli değil
+
+Mekanizma/politika ayrımı **zaten yapılmış** — property indirection'ı tam olarak bunun için
+var. `zeus-parent`'ta tipe özel olan yalnızca **4 property tanımı**:
+
+| Property | Kime ait |
+|---|---|
+| `zeus.war.packaging-excludes` | ince WAR |
+| `zeus.war.keep` | ince WAR |
+| `zeus.module.slot` | com.zeus'a bağlanan tipler |
+| `zeus.descriptor.dir` | standart tip varsayılanı |
+
+Geri kalan her şey bu property'leri **okur**, değerlerini varsaymaz
+(`<packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>`, profilde
+`${zeus.descriptor.dir}`). Base ayrımı bu ayrımı iyileştirmez; yalnızca 4 varsayılanı
+bir seviye aşağı taşır. Kazanç kavramsal, risk platform-geneldir (herkesin miras aldığı
+pom'da 250 satırlık taşıma + zincire yayınlanan bir artefakt daha).
+
+Ölü mirasın yol açtığı **tek fonksiyonel sorun** kapsam denetimiydi ve çözüldü:
+`verify-module-coverage.sh` artık parent adına değil `zeus.war.packaging-excludes`'a bakıyor
+— bu, isimlendirme kuralını değil paketlemenin fiili durumunu okuduğu için daha sağlam.
+
+### Bunun yerine yapılan: ölü property'leri açıkça boşaltmak
+
+`zeus-bff-parent` ve `zeus-standalone-parent`, miras aldıkları ama kullanmadıkları
+property'leri boşaltır:
+
+```xml
+<zeus.module.slot/>   <!-- bu tip com.zeus'a bağlanmaz -->
+<zeus.war.keep/>      <!-- dışlama yok → bundle istisnası anlamsız -->
+```
+
+Boşaltılmazsa `help:effective-pom` çıktısında `slot: main` görünür ve okuyan kişi
+uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bff` ve
+`descriptor-standalone` şablonları bu property'lere hiç referans vermez
+(`descriptor-standard` 3, `descriptor-soap` 1, izole şablonlar **0** kez kullanır).
+
+### Kararı yeniden açacak tetikleyiciler
+
+Şunlardan biri gerçekleşirse base ayrımı kazanılmış olur ve yapılmalıdır:
+
+1. **4. tip parent** ekleniyor ve o da izole (tiplerin çoğunluğu politikayı ezer hale gelir).
+2. `zeus.module.slot` / `zeus.war.keep` mirası **yeni bir yerde** yanlış davranışa yol açıyor.
+3. Base seviyesinde, **standart tipe uygulanmaması gereken** bir yapılandırma ihtiyacı doğuyor.
+
+## SOAP hattı (Apache CXF 4.2.x)
 
 - **Neden CXF 4.2.x:** Jakarta EE 11 + Spring Framework 7 + Boot 4 uyumlu ilk satır.
   Sürüm BOM'da: `cxf.version` + `cxf-spring-boot-starter-jaxws` yönetimi.

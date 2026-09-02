@@ -30,6 +30,13 @@
         <!-- FAT WAR (FRAMEWORK/TİP kararı): ince WAR dışlaması boşaltılır — jar'lar
              dışlanMAZ. BFF, com.zeus module yaşam döngüsünden bağımsız deploy edilir. -->
         <zeus.war.packaging-excludes/>
+
+        <!-- Miras alınan ama BU TİPTE ANLAMSIZ property'ler — bilinçli olarak boşaltılır
+             (aynı gerekçe zeus-standalone-parent'ta da geçerlidir): boşaltılmazsa
+             effective-pom'da "slot: main" görünür ve BFF'in com.zeus'a bağlandığı sanılır.
+             descriptor-bff şablonu bu property'lere referans vermez. -->
+        <zeus.module.slot/>   <!-- BFF com.zeus module'üne bağlanmaz (izole) -->
+        <zeus.war.keep/>      <!-- fat WAR → dışlama yok → bundle istisnası anlamsız -->
     </properties>
 
     <dependencies>

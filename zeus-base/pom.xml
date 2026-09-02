@@ -34,6 +34,24 @@
             <groupId>org.springframework</groupId>
             <artifactId>spring-web</artifactId>
         </dependency>
+        <!-- ZeusServletInitializer (WAR başlatıcısı) için. provided: servlet API'sini runtime'da
+             kapsayıcı (WildFly/Undertow ya da embedded Tomcat) sağlar; WAR'a ve com.zeus
+             module'üne girmez (script jakarta.*-api'leri zaten dışlar). -->
+        <dependency>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- RestClient/RestTemplate customizer'ları (correlation ID'yi giden çağrılara ekler).
+             optional: zeus-base'i kullanan her uygulama HTTP istemcisi kullanmak zorunda değil;
+             classpath'te yoksa ZeusCorrelationAutoConfiguration'ın ilgili iç sınıfı
+             @ConditionalOnClass ile devre dışı kalır. Paylaşımlı com.zeus module'ünde jar
+             zaten mevcuttur (starter-restclient). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-restclient</artifactId>
+            <optional>true</optional>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

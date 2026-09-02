@@ -25,10 +25,29 @@ APP_DIR="${1:-$(pwd)}"
 #  - jakarta.*-api  : WildFly server module'lerinden gelir
 #  - zeus-*         : uygulamanın WAR'ında taşınır
 #  - lombok/jarmode : runtime'da gereksiz
-EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+)$'
+#  - ojdbc/orai18n/ucp : WildFly'ın KENDİ com.oracle.ojdbc module'ünden gelir (datasource oraya
+#    bağlı). zeus-database bunu compile scope'ta getirir ki 'local' profil (embedded Tomcat)
+#    çalışsın; com.zeus module'ünde ARANMAZ — orada olmaması DOĞRU davranıştır.
+EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+|ojdbc[0-9]+|orai18n|ucp[0-9]+)$'
 
 cd "${APP_DIR}"
 MVN="mvn"
+
+# --- SELF-CONTAINED WAR mı? Öyleyse denetlenecek bir şey yok ---
+# zeus.war.packaging-excludes, ince WAR dışlama regex'idir. Tip parent'ları onu BOŞALTARAK
+# self-contained WAR seçer (zeus-standalone-parent, zeus-bff-parent). O durumda uygulamanın
+# runtime kapanışının tamamı WAR'ın içindedir ve descriptor com.zeus'a referans vermez —
+# kapsamı paylaşımlı module'e karşı denetlemek yalnızca yanlış pozitif üretir.
+#
+# Kontrol PARENT ADINA değil POLİTİKA PROPERTY'sine bakar: böylece ileride eklenecek her
+# izole tip otomatik kapsanır ve script'in parent adlarını bilmesi gerekmez.
+PKG_EXCLUDES="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.war.packaging-excludes -DforceStdout 2>/dev/null || true)"
+[[ "${PKG_EXCLUDES}" == "null"* ]] && PKG_EXCLUDES=""
+if [[ -z "${PKG_EXCLUDES// /}" ]]; then
+    echo ">> Self-contained WAR (zeus.war.packaging-excludes boş) — kapsam denetimi ATLANDI."
+    echo "   Tüm runtime bağımlılıklar WAR içinde taşınır; com.zeus module'ü kullanılmaz."
+    exit 0
+fi
 
 # App'in hedeflediği module SLOT'u (zeus.module.slot, zeus-parent'tan; üretilen
 # jboss-deployment-structure.xml'e yazılan değerle aynı kaynak). Kapsam bu slot'a karşı denetlenir.

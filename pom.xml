@@ -33,6 +33,18 @@
              (CVE gerekirse override yeri zeus-dependencies BOM'udur, burası değil.) -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Oracle sürücü ailesi (ojdbc17 + ucp17 + orai18n + ons/simplefan/oraclepki/xdb).
+             BURADA olmasının sebebi Maven öncelik kuralıdır: Spring Boot BOM'u bu aileyi
+             ZATEN yönetir (Boot 4.0.7 → 23.9.0.25.07) ve o yönetim spring-boot-starter-parent
+             üzerinden PARENT ZİNCİRİYLE miras alınır. zeus-dependencies'teki bir giriş
+             IMPORT yoluyla geldiği için miras alınana KAYBEDER — pratikte etkisiz kalır.
+             Boot parent'ken bir Boot sürümünü ezmenin tek doğru yolu, Boot'un kendi
+             property'sini aynı adla yeniden tanımlamaktır. Buradan tüm zeus modülleri ve
+             tüketen uygulamalar aynı sürümü görür.
+             DİKKAT: WildFly'ın com.oracle.ojdbc module'ü bu değerle EL İLE hizalanmalıdır
+             (bkz. gelistirmeler/17-module-yenileme-runbook.md). -->
+        <oracle-database.version>23.26.3.0.0</oracle-database.version>
+
         <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
     </properties>
 
@@ -43,6 +55,8 @@
         <!-- Uygulama TİPİNE özel parent'lar (zeus-parent'tan türerler; tek ${revision}). -->
         <module>zeus-soap-parent</module>
         <module>zeus-bff-parent</module>
+        <!-- com.zeus module'üne bağlanmayan, self-contained WAR üreten tip. -->
+        <module>zeus-standalone-parent</module>
         <module>zeus-base</module>
         <module>zeus-logger</module>
         <module>zeus-database</module>

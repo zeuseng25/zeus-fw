@@ -54,6 +54,25 @@
             <groupId>com.zeus</groupId>
             <artifactId>zeus-base</artifactId>
         </dependency>
+
+        <!-- Oracle JDBC sürücüsü. zeus-database Oracle'a KOD olarak bağlı değildir
+             (tek bir 'import oracle.*' yoktur; DataSource/SimpleJdbcCall/EntityManager
+             kullanılır) — sürücü buraya PAKETLEME kolaylığı için konur:
+
+             Platform Oracle-only olduğundan her uygulamanın aynı sürücü bloğunu tekrar
+             yazması gereksiz tekrardı. compile scope GEÇİŞLİDİR: zeus-database ekleyen
+             uygulama sürücüyü otomatik alır ve 'local' profilde (embedded Tomcat,
+             doğrudan JDBC) hiçbir ek bildirim olmadan çalışır. Sürüm zeus BOM'undan.
+
+             Sürücünün çalışma zamanı yolculuğu:
+               - WAR'a girmez        → zeus-parent'ın packagingExcludes'u zeus-* dışını atar
+               - com.zeus'a girmez   → install-zeus-module.sh EXCLUDE_REGEX'i ojdbc'yi dışlar
+               - WildFly'da          → sunucunun kendi com.oracle.ojdbc module'ünden gelir
+             Böylece sunucuda TEK sürücü olur (çift kopya ClassCastException üretirdi). -->
+        <dependency>
+            <groupId>com.oracle.database.jdbc</groupId>
+            <artifactId>ojdbc17</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

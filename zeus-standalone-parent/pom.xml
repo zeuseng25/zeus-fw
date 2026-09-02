@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-standalone-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus Standalone Parent</name>
+    <description>Paylaşımlı com.zeus WildFly module'üne BAĞLANMAYAN uygulamaların parent'ı.
+        zeus-parent'tan türer: BOM, lombok, test altyapısı, flatten ve üretilen descriptor
+        mekanizması miras alınır. Fark: SELF-CONTAINED WAR — tüm runtime kapanışı (zeus-*
+        dahil) WAR içinde taşınır, descriptor'da com.zeus bağımlılığı yoktur.
+
+        Kullanım alanı: classloader izolasyonu GEREKEN uygulamalar — tipik olarak kendi
+        kütüphane sürümünü platform slot rollout'undan bağımsız yamalaması gereken güvenlik
+        bileşenleri (auth/authorization server) ve bağımlılıkları paylaşımlı module'e
+        girmesi istenmeyen uygulamalar.
+
+        Sürüm politikası: hangi parent kullanılırsa kullanılsın tek ${revision}.
+        Detay: gelistirmeler/14-uygulama-tipi-parentlar.md</description>
+
+    <properties>
+        <!-- STANDALONE tipi descriptor: subsystem dışlamaları var, com.zeus bağımlılığı YOK.
+             BFF ile aynı sonucu verir ama şablonu AYRIDIR (descriptor-bff) — iki tipin
+             ileride ayrışabilmesi için bilinçli olarak paylaşılmaz. -->
+        <zeus.descriptor.dir>descriptor-standalone</zeus.descriptor.dir>
+
+        <!-- SELF-CONTAINED WAR (FRAMEWORK/TİP kararı): ince WAR dışlaması BOŞALTILIR, yani
+             hiçbir jar WAR'dan atılmaz. Uygulama com.zeus module yaşam döngüsünden tamamen
+             bağımsızdır; module'ün kurulu olmadığı bir WildFly'a da deploy edilebilir.
+
+             SONUÇ: zeus.war.keep bu parent'ta ANLAMSIZDIR (dışlama zaten yok) ve
+             zeus.module.slot KULLANILMAZ (descriptor module'e referans vermez).
+             verify-module-coverage.sh bu property'nin boş olmasına bakarak kapsam
+             denetimini atlar. -->
+        <zeus.war.packaging-excludes/>
+
+        <!-- Miras alınan ama BU TİPTE ANLAMSIZ property'ler — bilinçli olarak boşaltılır.
+             zeus-parent bunlara varsayılan atar (slot=main, keep=boş); boşaltılmazsa
+             effective-pom'da "slot: main" görünür ve okuyan kişi uygulamanın com.zeus'a
+             bağlandığını sanır. Boşaltmak niyeti dürüstçe gösterir.
+             Risk yok: descriptor-standalone şablonu bu property'lere referans vermez
+             (descriptor-standard 3, descriptor-soap 1, descriptor-standalone 0 kez kullanır). -->
+        <zeus.module.slot/>   <!-- bu tip com.zeus module'üne bağlanmaz -->
+        <zeus.war.keep/>      <!-- WAR dışlaması yok → bundle istisnası da anlamsız -->
+    </properties>
+
+    <dependencies>
+        <!-- Gömülü Tomcat WAR'a girmesin: konteyner WildFly/Undertow. provided scope,
+             starter-webmvc'nin çektiği tomcat alt ağacını paket kapanışından düşürür
+             (zeus-bff-parent ve zeus-wildfly-module'deki kalıbın aynısı).
+             spring-boot:run yine çalışır — provided, run classpath'indedir.
+
+             NOT: WAR'ı hem deploy edilebilir hem ÇALIŞTIRILABİLİR (executable) isteyen
+             uygulama, kendi pom'unda spring-boot-maven-plugin repackage skip'ini
+             kapatır; Boot o durumda provided jar'ları WEB-INF/lib-provided'a koyar ve
+             konteyner onları yok sayar. Varsayılan platform kararı: repackage KAPALI. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

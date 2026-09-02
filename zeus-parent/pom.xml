@@ -50,7 +50,31 @@
              standart/soap tiplerinde yalnız zeus-* jar'ları WAR'da kalır; zeus-bff-parent bu
              property'yi BOŞALTIR (fat WAR: BFF izoledir, com.zeus module kullanmaz). -->
         <zeus.war.packaging-excludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</zeus.war.packaging-excludes>
+        <!-- surefire argLine'ının GEÇ BAĞLAMA (@{argLine}) tabanı.
+             Boş tanımlı olması şart: aşağıdaki surefire yapılandırması @{argLine} ile başlar;
+             property hiç tanımlı olmazsa surefire ifadeyi literal bırakır ve JVM açılmaz.
+             Bir uygulama JaCoCo eklerse prepare-agent bu property'yi doldurur, Mockito
+             javaagent'ı onun ÜSTÜNE eklenir — iki agent birbirini ezmez. -->
+        <argLine></argLine>
     </properties>
+
+    <!-- ═══════════ Tüm zeus modüllerine ve tüketen uygulamalara ORTAK bağımlılıklar ═══════════ -->
+    <dependencies>
+        <!-- TEST ALTYAPISI — FRAMEWORK KARARI, uygulama yazmaz.
+             Neden burada: surefire provider'ını test classpath'ini tarayarak seçer. JUnit
+             Platform motoru (junit-jupiter-engine) yoksa son çare olarak JUnit3Provider'a
+             düşer — ve build KIRILMAZ: JUnit 5 anotasyonlarını tanımadığı için "Tests run: 0"
+             yazıp yeşil geçer. Hiç test çalıştırmayan yeşil build, kırmızıdan çok daha
+             tehlikelidir. Bu bağımlılık motoru garanti eder, provider bir daha junit3'e düşemez.
+
+             İnce WAR'a etkisi YOK: test scope ne WAR'a girer ne com.zeus module'üne
+             (install-zeus-module.sh -DincludeScope=runtime kullanır, test scope dışarıdadır). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <dependencyManagement>
         <dependencies>
@@ -96,6 +120,40 @@
                     </configuration>
                 </plugin>
 
+                <!-- TEST ÇALIŞTIRMA — Mockito'yu javaagent olarak takar.
+                     Java 25'te Mockito inline-mock-maker kendini JVM'e SELF-ATTACH ediyor ve
+                     şu uyarıyı basıyor: "This will no longer work in future releases of the JDK."
+                     JDK self-attach'i kapattığı gün, önlem alınmazsa TÜM uygulamaların testleri
+                     birden kırılır. Agent'ı önden takmak bunu bugünden çözer.
+
+                     ${org.mockito:mockito-core:jar} property'sini aşağıdaki maven-dependency-plugin
+                     'properties' goal'ü üretir. Mockito her modüle zeus-parent'ın
+                     spring-boot-starter-test bağımlılığıyla geldiği için property daima çözülür.
+
+                     @{argLine}: geç bağlama — JaCoCo gibi argLine'ı dolduran eklentilerle
+                     çakışmaz (tabanı yukarıdaki boş <argLine> property'sidir). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                    </configuration>
+                </plugin>
+
+                <!-- Bağımlılık jar yollarını property olarak açar (yukarıdaki javaagent için). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>zeus-dependency-properties</id>
+                            <goals>
+                                <goal>properties</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
                 <!-- Lombok annotation processor yolu (sürüm Spring Boot BOM'undan). -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -126,6 +184,19 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <!-- TÜM alt modüllerde ve tüketen uygulamalarda KOŞULSUZ çalışan eklentiler.
+             (pluginManagement yalnızca YAPILANDIRIR; burada listelenmeyen bir eklentinin
+             varsayılan yaşam döngüsünde bağlanması yoksa hiç çalışmaz.) -->
+        <plugins>
+            <!-- dependency:properties — surefire'ın Mockito javaagent'ı için gereken
+                 ${org.mockito:mockito-core:jar} property'sini üretir. Yapılandırması
+                 yukarıdaki pluginManagement'tan gelir. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>

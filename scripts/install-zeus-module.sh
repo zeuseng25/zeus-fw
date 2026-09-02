@@ -85,7 +85,12 @@ fi
 # Module'e KONMAYACAK jar'lar (WildFly server module'lerinden gelir veya gereksiz).
 # zeus-* jar'ları hiçbir paylaşımlı module'e KONMAZ (WAR'da taşınırlar) → genel kalıp.
 # xml.ws / xml.soap api'leri: WildFly server module'leri (SOAP kapanışında görülür).
-EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+)-.*\.jar$'
+# ojdbc/orai18n/ucp: Oracle sürücüsü WildFly'ın KENDİ com.oracle.ojdbc module'ünden gelir
+#   (standalone.xml datasource'u ona bağlı). com.zeus'a da kopyalanırsa sunucuda İKİ sürücü
+#   olur: JNDI Connection'ı bir classloader'ın sınıfı, uygulamanın gördüğü tip diğerininki
+#   → ClassCastException/LinkageError. zeus-database ojdbc'yi compile scope'ta bildirir
+#   (uygulamalar sürücüyü tekrar yazmasın diye); buradaki dışlama onun module'e sızmasını önler.
+EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+|ojdbc[0-9]+|orai18n|ucp[0-9]+)-.*\.jar$'
 
 # --- 1) Runtime bağımlılık jar'larını topla (sözleşme pom'undan) ---
 # includeScope=runtime => compile+runtime; provided (tomcat) ve test hariç.

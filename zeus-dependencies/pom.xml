@@ -16,28 +16,114 @@
 
     <name>Zeus Framework BOM</name>
     <description>Tüm zeus modüllerinin ve 3. parti kütüphanelerin sürümlerini yöneten BOM
-        (spring-boot-dependencies benzeri). Dışarıdan scope=import ile alınır.</description>
+        (spring-boot-dependencies benzeri). Dışarıdan scope=import ile alınır.
+        Uygulamalar sürüm YAZMAZ; CVE yaması burada tek noktadan yapılır.</description>
+
+    <!--
+      SÜRÜM YÖNETİMİ SÖZLEŞMESİ (bu BOM'a bir kütüphane eklemeden önce oku)
+      ────────────────────────────────────────────────────────────────────
+      1) ÖNCE BOM ARA. Bir kütüphanenin resmî BOM'u varsa tek tek artefakt pin'lemek
+         yerine onu import et. Envanterdeki çakışmaların çoğunun kök nedeni buydu
+         (ör. groovy-all:4.0.13 + groovy modülleri:4.0.14, cxf-* artefaktlarının
+         transitif çözülmesi). BOM import'u bu sınıfı yapısal olarak imkânsız kılar.
+
+      2) IMPORT SIRASI ÖNEMLİ. Örtüşen yönetimde İLK import kazanır (Maven kuralı).
+         Sıra: Boot → Cloud → AI → CXF → ShedLock. Spring Boot en üstte, çünkü
+         platformun taban sürüm hattını o belirler.
+
+      3) DOĞRUDAN GİRİŞ, IMPORT'U EZER. Bu pom'da açıkça yazılan bir
+         <dependency> girişi, import edilen HERHANGİ bir BOM'un aynı artefakt için
+         verdiği sürümü geçersiz kılar. Acil CVE yaması bu yüzden hep burada yapılır.
+
+      4) TRANSİTİF TAŞIYICI PIN'LENMEZ. asm, checker-qual, opentest4j, apiguardian,
+         stax2-api, angus-activation, mimepull, stax-ex, jandex, HdrHistogram,
+         hibernate-commons-annotations gibi "başkasıyla gelen" jar'lar buraya
+         yazılmaz — üst kütüphane sürüm atladığında sessiz uyumsuzluk üretirler.
+         İstisna: yalnızca somut bir CVE için, gerekçe yorumuyla.
+
+      5) WILDFLY'IN SAĞLADIĞI YAZILMAZ. tomcat-embed-*, tomcat-dbcp/juli,
+         jakarta.*-api, saaj/jaxws-rt sunucudan gelir; BOM'a girmesi WAR'a sızma
+         riski yaratır (bkz. gelistirmeler/08-wildfly-module-dagitim.md).
+
+      6) ÖLÜ/EOL KÜTÜPHANE GİRMEZ. Yasaklı liste ve yerine ne konacağı:
+         gelistirmeler/16-eol-bagimliliklar-ve-migrasyon.md
+    -->
 
     <properties>
-        <!-- 3. parti sürümler: Spring Boot BOM'unun yönetmediği kütüphaneler burada sabitlenir. -->
-        <!-- springdoc 3.x = Spring Boot 4 / Framework 7 uyumlu satır (2.x Boot 4 ile ÇALIŞMAZ). -->
-        <springdoc-openapi.version>3.0.3</springdoc-openapi.version>
-        <!-- ojdbc17 = JDK 17+ (Java 25 dahil) için Oracle 23ai sürücü satırı. -->
-        <ojdbc.version>23.9.0.25.07</ojdbc.version>
-        <!-- CXF 4.2.x = Jakarta EE 11 / Spring Framework 7 / Boot 4 uyumlu satır (SOAP tipi). -->
-        <cxf.version>4.2.2</cxf.version>
+        <!-- ════ Platform hattı (BOM import'ları) ════ -->
+        <!-- Spring Boot sürümü BURADA DEĞİL: kök pom'un parent'ından gelir; aşağıdaki
+             import onunla lockstep tutulur (ikisi birden değişir). -->
         <!-- Oakwood (2025.1.x) = Spring Boot 4 uyumlu Spring Cloud release train (BFF tipi). -->
-        <spring-cloud.version>2025.1.2</spring-cloud.version>
+        <spring-cloud.version>2025.1.3</spring-cloud.version>
         <!-- Spring AI 2.x = Boot 4 / Framework 7 / Jackson 3 uyumlu satır. 1.x Boot 3.5'e bağlıdır
              ve Boot 4 context'inde YÜKLENMEZ; ayrıca 1.x Haziran 2026'da EOL oldu.
              Gerekçe: ../spring-wildfly-arch/gelistirmeler/17-spring-ai-surum-secimi.md -->
-        <spring-ai.version>2.0.0</spring-ai.version>
+        <spring-ai.version>2.0.1</spring-ai.version>
+        <!-- CXF 4.2.x = Jakarta EE 11 / Spring Framework 7 / Boot 4 uyumlu satır (SOAP tipi). -->
+        <cxf.version>4.2.3</cxf.version>
+        <!-- ShedLock: dağıtık scheduler kilidi (çok node'lu WildFly'da @Scheduled tekilleştirme). -->
+        <shedlock.version>7.9.0</shedlock.version>
+
+        <!-- ════ API dokümantasyonu ════ -->
+        <!-- springdoc 3.x = Spring Boot 4 / Framework 7 uyumlu satır (2.x Boot 4 ile ÇALIŞMAZ). -->
+        <springdoc-openapi.version>3.1.0</springdoc-openapi.version>
+
+        <!-- ════ Oracle ════ -->
+        <!-- Sürüm BURADA TANIMLI DEĞİL: kök pom'daki ${oracle-database.version}'dan gelir.
+             Sebebi öncelik kuralıdır — Boot BOM'u Oracle ailesini yönetir ve parent zinciriyle
+             miras alınır; buradaki bir giriş IMPORT olduğu için ona kaybeder. Tek etkili yer
+             Boot'un property'sini kök pom'da ezmektir. Aşağıdaki girişler yalnızca bu BOM'u
+             spring-boot-starter-parent OLMADAN import eden projeler için anlamlıdır; ikisi de
+             aynı property'yi kullandığından ayrışamazlar. -->
+        <!-- (ojdbc17 = JDK 17+ / Java 25 hattı; ucp17 ve orai18n Oracle tarafından aynı
+             sürümle yayınlanır, ayrışırlarsa NLS/UCP kırılır.) -->
+
+        <!-- ════ Raporlama / Ofis dosyaları ════ -->
+        <poi.version>5.5.1</poi.version>
+        <!-- JasperReports 7.x = Jakarta EE uyumlu ilk major (6.x javax'e bağlıydı).
+             DİKKAT: 6.20 → 7.x geçişi kırıcıdır (paket/API değişiklikleri). -->
+        <jasperreports.version>7.0.8</jasperreports.version>
+        <!-- OpenPDF 3.x: iText 4 forku, Java 17+ hattı. -->
+        <openpdf.version>3.0.5</openpdf.version>
+        <jfreechart.version>1.5.6</jfreechart.version>
+
+        <!-- ════ Ortak util ════ -->
+        <commons-io.version>2.22.0</commons-io.version>
+        <!-- 1.11.0: CVE-2025-48734 (BeanIntrospector yetki aşımı) yamalı ilk sürüm. -->
+        <commons-beanutils.version>1.11.0</commons-beanutils.version>
+        <commons-collections4.version>4.6.0</commons-collections4.version>
+        <commons-math3.version>3.6.1</commons-math3.version>
+        <json.version>20260814</json.version>
+        <joda-time.version>2.14.3</joda-time.version>
+        <javaparser.version>3.28.2</javaparser.version>
+        <picocli.version>4.7.7</picocli.version>
+
+        <!-- ════ Güvenlik ════ -->
+        <!-- jdk18on = JDK 1.8+ derlenmiş güncel hat. ESKİ jdk15on ARTEFAKTLARI ÖLÜ
+             (bkz. 16-eol-bagimliliklar-ve-migrasyon.md) — bu BOM onları yönetmez. -->
+        <bouncycastle.version>1.85</bouncycastle.version>
+        <!-- bcprov için 1.85.2 hotfix'i mevcut; bcpkix/bcutil'de karşılığı yok.
+             BC patch sürümleri drop-in uyumludur, karışık kullanım desteklenir. -->
+        <bouncycastle-prov.version>1.85.2</bouncycastle-prov.version>
+        <!-- spring-security-rsa Spring Security BOM'unda DEĞİLDİR, ayrı yayınlanır.
+             1.1.x güncel hat; 1.0.x.RELEASE eski daldır (tarihi daha yeni görünse de). -->
+        <spring-security-rsa.version>1.1.5</spring-security-rsa.version>
+
+        <!-- NOT: ant / ivy / ecj BİLEREK yok — 4. kural gereği transitif taşıyıcıdırlar:
+             ant ← groovy-ant, ivy ← groovy core (Grape, optional), ecj ← eski JasperReports 6.x
+             (7.x artık bağımlı değil). Sürümlerini üst kütüphane belirlemeli. -->
     </properties>
 
     <dependencyManagement>
         <dependencies>
-            <!-- Spring Boot yönetimi: bu BOM tek başına import edildiğinde de
-                 Spring/Hibernate/Jackson/redis/batch sürümleri çözülebilsin diye. -->
+            <!-- ═══════════════════════════════════════════════════════════════
+                 BOM IMPORT'LARI — sıra anlamlıdır (ilk import kazanır)
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <!-- 1) Spring Boot: platformun taban hattı. Bu BOM tek başına import
+                 edildiğinde de Spring/Hibernate/Jackson/Netty/Reactor/JUnit/Mockito
+                 sürümleri çözülebilsin diye burada da import edilir.
+                 NOT: Groovy da buradan gelir (Boot 4.0.7 → groovy-bom 5.0.6). -->
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
@@ -46,8 +132,8 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Spring Cloud BOM'u Boot BOM'undan SONRA import edilir (Maven kuralı: örtüşen
-                 yönetimlerde İLK import kazanır → Boot sürümleri geçerli kalır — bilinçli tercih). -->
+            <!-- 2) Spring Cloud (BFF tipi: Gateway Server MVC). Boot'tan SONRA —
+                 örtüşen yönetimde Boot sürümleri geçerli kalsın diye (bilinçli tercih). -->
             <dependency>
                 <groupId>org.springframework.cloud</groupId>
                 <artifactId>spring-cloud-dependencies</artifactId>
@@ -56,8 +142,7 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Spring AI BOM: spring-ai-* artefaktlarının sürümlerini yönetir. Boot BOM'undan
-                 SONRA import edilir (örtüşme yok; Spring AI kendi artefaktlarını yönetir). -->
+            <!-- 3) Spring AI: spring-ai-* artefaktları (örtüşme yok). -->
             <dependency>
                 <groupId>org.springframework.ai</groupId>
                 <artifactId>spring-ai-bom</artifactId>
@@ -66,7 +151,30 @@
                 <scope>import</scope>
             </dependency>
 
-            <!-- Zeus modülleri — hepsi tek ${revision} sürümüyle. -->
+            <!-- 4) Apache CXF (SOAP tipi). Tek tek artefakt pin'lemek yerine BOM:
+                 103 cxf-* artefaktını birden yönetir, böylece cxf-core / cxf-rt-* /
+                 cxf-spring-boot-* ağacında sürüm ayrışması olamaz. -->
+            <dependency>
+                <groupId>org.apache.cxf</groupId>
+                <artifactId>cxf-bom</artifactId>
+                <version>${cxf.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- 5) ShedLock: core / spring / provider-jdbc-template / sql-support
+                 dördü tek hattan gelsin diye BOM. -->
+            <dependency>
+                <groupId>net.javacrumbs.shedlock</groupId>
+                <artifactId>shedlock-bom</artifactId>
+                <version>${shedlock.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- ═══════════════════════════════════════════════════════════════
+                 ZEUS MODÜLLERİ — hepsi tek ${revision} sürümüyle
+                 ═══════════════════════════════════════════════════════════════ -->
             <dependency>
                 <groupId>com.zeus</groupId>
                 <artifactId>zeus-base</artifactId>
@@ -118,22 +226,126 @@
                 <version>${revision}</version>
             </dependency>
 
-            <!-- Ekstra 3. parti kütüphaneler (Spring Boot BOM dışı). -->
+            <!-- ═══════════════════════════════════════════════════════════════
+                 3. PARTİ — hiçbir BOM'un yönetmediği, çok uygulamada geçenler
+                 ═══════════════════════════════════════════════════════════════ -->
+
+            <!-- ──── API dokümantasyonu ──── -->
             <dependency>
                 <groupId>org.springdoc</groupId>
                 <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
                 <version>${springdoc-openapi.version}</version>
             </dependency>
+
+            <!-- ──── Oracle (sürücü + connection pool + NLS) ──── -->
             <dependency>
                 <groupId>com.oracle.database.jdbc</groupId>
                 <artifactId>ojdbc17</artifactId>
-                <version>${ojdbc.version}</version>
+                <version>${oracle-database.version}</version>
             </dependency>
-            <!-- SOAP tipi: Apache CXF (JAX-WS). Uygulamalar ve zeus-soap sürüm yazmadan kullanır. -->
+            <!-- UCP: Oracle'ın kendi havuzu. WildFly JNDI datasource kullanan uygulamalar
+                 buna DOKUNMAZ; yalnızca havuzu uygulama içinde yöneten legacy hatlar için. -->
             <dependency>
-                <groupId>org.apache.cxf</groupId>
-                <artifactId>cxf-spring-boot-starter-jaxws</artifactId>
-                <version>${cxf.version}</version>
+                <groupId>com.oracle.database.jdbc</groupId>
+                <artifactId>ucp17</artifactId>
+                <version>${oracle-database.version}</version>
+            </dependency>
+            <!-- orai18n: Türkçe karakter/collation ve tarih biçimleri için NLS desteği. -->
+            <dependency>
+                <groupId>com.oracle.database.nls</groupId>
+                <artifactId>orai18n</artifactId>
+                <version>${oracle-database.version}</version>
+            </dependency>
+
+            <!-- ──── Raporlama / Ofis dosyaları ──── -->
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.poi</groupId>
+                <artifactId>poi-ooxml</artifactId>
+                <version>${poi.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>net.sf.jasperreports</groupId>
+                <artifactId>jasperreports</artifactId>
+                <version>${jasperreports.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.librepdf</groupId>
+                <artifactId>openpdf</artifactId>
+                <version>${openpdf.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.jfree</groupId>
+                <artifactId>jfreechart</artifactId>
+                <version>${jfreechart.version}</version>
+            </dependency>
+
+            <!-- ──── Ortak util ──── -->
+            <dependency>
+                <groupId>commons-io</groupId>
+                <artifactId>commons-io</artifactId>
+                <version>${commons-io.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>commons-beanutils</groupId>
+                <artifactId>commons-beanutils</artifactId>
+                <version>${commons-beanutils.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-collections4</artifactId>
+                <version>${commons-collections4.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-math3</artifactId>
+                <version>${commons-math3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.json</groupId>
+                <artifactId>json</artifactId>
+                <version>${json.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>joda-time</groupId>
+                <artifactId>joda-time</artifactId>
+                <version>${joda-time.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.javaparser</groupId>
+                <artifactId>javaparser-core</artifactId>
+                <version>${javaparser.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>info.picocli</groupId>
+                <artifactId>picocli</artifactId>
+                <version>${picocli.version}</version>
+            </dependency>
+
+            <!-- ──── Güvenlik ──── -->
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>${bouncycastle-prov.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcpkix-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcutil-jdk18on</artifactId>
+                <version>${bouncycastle.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.springframework.security</groupId>
+                <artifactId>spring-security-rsa</artifactId>
+                <version>${spring-security-rsa.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

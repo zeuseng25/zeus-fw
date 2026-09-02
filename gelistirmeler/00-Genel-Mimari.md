@@ -70,7 +70,7 @@ Spring Boot / Spring sürümleri de buradan yönetilir: Spring Boot sürümü k�
 <parent>
     <groupId>com.zeus</groupId>
     <artifactId>zeus-parent</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>2.0.0-SNAPSHOT</version>
     <relativePath/>
 </parent>
 
@@ -120,8 +120,8 @@ mvn clean install      # 8 artefaktı ~/.m2/repository/com/zeus/ altına kurar
 ```
 
 Doğrulama:
-- `~/.m2/repository/com/zeus/` altında `zeus-fw`, `zeus-dependencies`, `zeus-parent` (pom) + `zeus-base/-logger/-database/-service/-redis/-batch` (jar) `1.0.0-SNAPSHOT` ile oluşur.
-- Yayınlanan pom'larda `${revision}` yerine `1.0.0-SNAPSHOT` yazar (flatten doğrulaması).
+- `~/.m2/repository/com/zeus/` altında `zeus-fw`, `zeus-dependencies`, `zeus-parent` (pom) + `zeus-base/-logger/-database/-service/-redis/-batch` (jar) `2.0.0-SNAPSHOT` ile oluşur.
+- Yayınlanan pom'larda `${revision}` yerine `2.0.0-SNAPSHOT` yazar (flatten doğrulaması).
 - Her modül jar'ında `META-INF/spring/...AutoConfiguration.imports` bulunur.
 
 ## İlgili
