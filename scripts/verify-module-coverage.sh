@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
 #
-# Module kapsam doğrulaması (PLATFORM scripti).
+# Deploy ön-kontrolü (PLATFORM scripti).
 #
-# Bir uygulamanın runtime 3. parti bağımlılıklarının, paylaşımlı WildFly 'com.zeus'
-# module'ü tarafından karşılanıp karşılanmadığını denetler. Module'de OLMAYAN bir bağımlılık
-# WAR'da taşınır (denylist paketleme); WildFly'da NoClassDefFoundError olmadan ÖNCE
-# non-zero exit ile uyarır → deploy'dan önce yakalanır.
+# İKİ ŞEYİ denetler:
+#   1) Uygulamanın hedeflediği com.zeus slot'u sunucuda KURULU mu?
+#   2) WAR'da framework'ün ÜRETTİĞİ jboss-deployment-structure.xml var mı?
 #
-# Neden gerekli: zeus-dependencies BOM ~1000+ lib'in SÜRÜMÜNÜ yönetir (app sürümsüz
-# ekleyebilir, derlenir, lokalde çalışır), ama yalnız zeus-wildfly-module'deki küçük
-# altküme gerçekten module'dedir. Aradaki uçurum WildFly'da geç ve kriptik patlar.
+# NOT: "bağımlılık module'de var mı?" kontrolü KALDIRILDI. Denylist paketlemesinden sonra
+# module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/19-war-paketleme-module-
+# farkindaligi.md); onu eksik saymak yanlış pozitiftir.
 #
 # Kullanım:
 #   ./scripts/verify-module-coverage.sh [app-dizini]   (varsayılan: cwd)
@@ -19,16 +18,6 @@ set -euo pipefail
 
 WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 APP_DIR="${1:-$(pwd)}"
-
-# install-zeus-module.sh ile AYNI dışlama kümesi (artifactId bazında):
-# bunlar module'de DEĞİL → kapsam kontrolünde aranmaz.
-#  - jakarta.*-api  : WildFly server module'lerinden gelir
-#  - zeus-*         : uygulamanın WAR'ında taşınır
-#  - lombok/jarmode : runtime'da gereksiz
-#  - ojdbc/orai18n/ucp : WildFly'ın KENDİ com.oracle.ojdbc module'ünden gelir (datasource oraya
-#    bağlı). zeus-database bunu compile scope'ta getirir ki 'local' profil (embedded Tomcat)
-#    çalışsın; com.zeus module'ünde ARANMAZ — orada olmaması DOĞRU davranıştır.
-EXCLUDE_REGEX='^(jakarta\.(activation|annotation|inject|persistence|transaction|validation|xml\.bind|xml\.ws|xml\.soap)-api|lombok|spring-boot-jarmode-[a-z]+|zeus-[a-z0-9-]+|ojdbc[0-9]+|orai18n|ucp[0-9]+)$'
 
 cd "${APP_DIR}"
 MVN="mvn"
@@ -54,13 +43,6 @@ fi
 SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.module.slot -DforceStdout 2>/dev/null || true)"
 [[ -z "${SLOT}" || "${SLOT}" == "null"* ]] && SLOT="main"
 MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
-
-# SOAP tipi uygulama mı? (zeus-soap-parent, zeus.soap.module.slot property'sini tanımlar)
-# Öyleyse kapsam denetimi com.zeus ∪ com.zeus.soap birleşimine karşı yapılır.
-SOAP_SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.soap.module.slot -DforceStdout 2>/dev/null || true)"
-[[ "${SOAP_SLOT}" == "null"* ]] && SOAP_SLOT=""
-SOAP_MODULE_DIR=""
-[[ -n "${SOAP_SLOT}" ]] && SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
 
 # Üretilen-descriptor kontrolü: WAR build edilmişse içinde framework'ün ürettiği
 # jboss-deployment-structure.xml olmalı. Yoksa zeus-generated-descriptor profili devreye
@@ -90,64 +72,4 @@ if [[ ! -f "${MODULE_DIR}/module.xml" ]]; then
     exit 2
 fi
 
-# App'in runtime bağımlılık kapanışı
-TMP="$(mktemp -d)"; trap 'rm -rf "${TMP}"' EXIT
-echo ">> Kapsam denetimi: $(basename "${APP_DIR}") runtime bağımlılıkları vs com.zeus:${SLOT} module"
-${MVN} -q -B -Dstyle.color=never dependency:list -DincludeScope=runtime \
-    -DoutputFile="${TMP}/deps.txt" >/dev/null 2>&1
-
-missing=()
-while IFS= read -r line; do
-    # ANSI temizle + baştaki boşluk
-    line="$(printf '%s' "${line}" | sed 's/\x1b\[[0-9;]*m//g; s/^[[:space:]]*//')"
-    # format: groupId:artifactId:jar:version:scope [ -- module ...]
-    # CLASSIFIER'LI artefaktta bir alan FAZLADIR:
-    #   groupId:artifactId:jar:classifier:version:scope   (ör. netty native transport'lar)
-    # Alan sayısını saymadan sürümü hep 4. alandan okumak, classifier'lı jar'ları
-    # "module'de yok" diye yanlış raporlar (jar adı da yanlış kurulur).
-    [[ "${line}" =~ ^[^:]+:[^:]+:[^:]+:[^:]+:[^:[:space:]]+ ]] || continue
-    coords="$(printf '%s' "${line}" | awk '{print $1}')"   # ' -- module ...' ekini at
-    nf="$(printf '%s' "${coords}" | awk -F: '{print NF}')"
-    gid="$(printf '%s' "${coords}" | cut -d: -f1)"
-    aid="$(printf '%s' "${coords}" | cut -d: -f2)"
-    cls=""
-    if [[ "${nf}" -ge 6 ]]; then
-        cls="$(printf '%s' "${coords}" | cut -d: -f4)"
-        ver="$(printf '%s' "${coords}" | cut -d: -f5)"
-    else
-        ver="$(printf '%s' "${coords}" | cut -d: -f4)"
-    fi
-    [[ -z "${aid}" || -z "${ver}" ]] && continue
-    # module'de olmayan küme (jakarta/zeus/lombok/jarmode) → atla
-    [[ "${aid}" =~ ${EXCLUDE_REGEX} ]] && continue
-    if [[ -n "${cls}" ]]; then
-        jar="${aid}-${ver}-${cls}.jar"
-    else
-        jar="${aid}-${ver}.jar"
-    fi
-    # module'de fiziksel var mı? (SOAP tipinde com.zeus.soap da aranır)
-    if [[ ! -f "${MODULE_DIR}/${jar}" ]]; then
-        if [[ -n "${SOAP_MODULE_DIR}" && -f "${SOAP_MODULE_DIR}/${jar}" ]]; then
-            continue
-        fi
-        if [[ -n "${cls}" ]]; then
-            missing+=("${gid}:${aid}:${ver}:${cls}")
-        else
-            missing+=("${gid}:${aid}:${ver}")
-        fi
-    fi
-done < "${TMP}/deps.txt"
-
-if [[ ${#missing[@]} -gt 0 ]]; then
-    echo "" >&2
-    echo "❌ MODULE KAPSAM HATASI: aşağıdaki runtime bağımlılık(lar) paylaşımlı com.zeus:${SLOT} module'de YOK" >&2
-    echo "   (WildFly'da NoClassDefFoundError'a yol açar):" >&2
-    for m in "${missing[@]}"; do echo "     - ${m}" >&2; done
-    echo "" >&2
-    echo "   Çözüm:" >&2
-    echo "     • Genel/paylaşılan lib  → zeus-fw/zeus-wildfly-module/pom.xml'e ekle," >&2
-    echo "                               ./scripts/install-zeus-module.sh + WildFly restart" >&2
-    exit 1
-fi
-
-echo "✅ Module kapsamı tam: tüm runtime bağımlılıklar com.zeus:${SLOT} module'de."
+echo "✅ Slot kurulu ve üretilmiş descriptor yerinde."
