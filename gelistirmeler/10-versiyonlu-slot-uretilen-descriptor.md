@@ -125,6 +125,15 @@ SLOT akışında farklar:
 - Promote artifact'ı slot dizininden üretilir (`com-zeus-module-<slot>-<stamp>.tar.gz`);
   prod talimatı restart'sızdır (tar aç → app'ler parent bump + redeploy → envanterle kapanış).
 
+### 7) `generate-war-excludes.sh` — üretilen WAR dışlama listesi
+
+Descriptor gibi, WAR'ın dışlama listesi de **üretilir**. Kaynağı `zeus-wildfly-module`
+(SOAP için ek olarak `zeus-soap-wildfly-module`) runtime kapanışıdır; çıktısı
+`zeus-parent` ve `zeus-soap-parent` POM'larındaki marker bloklarıdır.
+`install-zeus-module.sh` kendi sonunda bunu çağırır — module ve liste aynı kapanıştan
+üretildiği için ayrışamazlar. CI için: `--check`.
+Gerekçe: `19-war-paketleme-module-farkindaligi.md`.
+
 ## Uygulamaya özel ek module bağımlılığı (`zeus.descriptor.extra.modules`)
 
 **Varsayılan boştur; hiçbir mevcut uygulamanın davranışı değişmez.** İnce WAR şablonlarında

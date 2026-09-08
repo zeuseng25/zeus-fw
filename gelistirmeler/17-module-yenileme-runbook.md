@@ -101,6 +101,10 @@ Tetikleyici: `zeus-dependencies` BOM'unun kurum envanterine göre genişletilmes
    `at com.zeus//com.openai...~[openai-java-core-4.49.0.jar!/:4.49.0]`
    (`com.zeus//` öneki = module classloader; sürüm 4.39.1 değil 4.49.0).
 
+> `install-zeus-module.sh` çalıştıktan sonra `zeus-parent`/`zeus-soap-parent` POM'larındaki
+> üretilmiş WAR dışlama listeleri de değişmiş olabilir — **commit edilmeleri gerekir**.
+> Kontrol: `./scripts/generate-war-excludes.sh --check`.
+
 ## Script'in YÖNETMEDİĞİ module: `com.oracle.ojdbc`
 
 Oracle JDBC sürücüsü `com.zeus`'ta **değildir** — WildFly'ın kendi

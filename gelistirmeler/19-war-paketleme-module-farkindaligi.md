@@ -1,6 +1,7 @@
 # 19 — WAR Paketlemesi: allowlist'ten module-farkındalığına (tasarım)
 
-**Durum:** onaylanmış tasarım, uygulanmadı. Karar tarihi: 2026-09-08.
+**Durum:** UYGULANDI (2026-09-08). Tasarım kararları ve ölçümler aşağıda; uygulama planı
+`docs/superpowers/plans/2026-09-08-war-paketleme-module-farkindaligi.md`.
 
 İnce WAR'ın hangi jar'ları taşıyacağı bugün **yanlış tarafta** tanımlı. Kural
 "module'ün verdiğini at" olması gerekirken "zeus- dışındakini at" biçiminde yazılmış.
@@ -153,16 +154,29 @@ Bu, `ojdbc` açısından bugünkü davranışın **korunması** demektir: allowl
 atıyordu, denylist de atmaya devam edecek. Sabit kuyruk olmasaydı ojdbc WAR'a girer ve
 sürücü tekliği bozulurdu — bu tasarımın en kolay gözden kaçacak ayrıntısıdır.
 
+## Kalıntı risk: artifactId eşleşmesi groupId'ye bakmaz
+
+Eşleşme artifactId bazlıdır, groupId'ye bakmaz. Dolayısıyla farklı bir groupId'den gelen
+aynı adlı bir artefakt (listede `annotations`, `okio`, `ST4`, `itu` gibi genel adlar var)
+WAR'dan atılır ama module başka bir üreticinin sınıflarını sağlar → `NoClassDefFoundError`.
+Bu, "sürümden bağımsız artifactId eşleşmesi" kararının kabul edilmiş bedelidir; bugün
+bilinen bir örneği yoktur, ama yeni bir bağımlılık eklenirken akılda tutulmalıdır.
+
 ## Doğrulama planı
 
-| Kapı | Beklenen |
-|---|---|
-| `spring-wildfly-arch` WAR'ının jar kümesi | **Değişmemeli** — kapanışı `com.zeus` tarafından tam karşılanıyor (`verify-module-coverage.sh` ✅ ile ölçüldü). Regresyon yok kanıtı. |
-| `spring-wildfly-arch` WildFly deploy + smoke | Yeşil |
-| SOAP örnek uygulaması WAR'ı | Hiçbir CXF jar'ı içermemeli |
-| ojdbc | WAR'da **0** kopya |
-| `test-project--service` | Bugün silinen jar'lar WAR'a girmeli, deploy geçmeli |
-| bff / standalone WAR'ları | Değişmemeli (property boş kalır) |
+| Kapı | Beklenen | Sonuç |
+|---|---|---|
+| `spring-wildfly-arch` WAR'ının jar kümesi | **Değişmemeli** — kapanışı `com.zeus` tarafından tam karşılanıyor (`verify-module-coverage.sh` ✅ ile ölçüldü). Regresyon yok kanıtı. | ✅ 5 jar (`zeus-base`, `zeus-service`, `zeus-ai`, `zeus-database`, `zeus-logger`) — allowlist dönemindeki sayıyla birebir aynı |
+| `spring-wildfly-arch` WildFly deploy + smoke | Yeşil | ✅ WildFly 41.0.0.Final'a gerçek deploy: `WFLYSRV0016: Replaced deployment`, context `/spring-wildfly-arch` kaydedildi, `server.log`'da `ERROR`/`NoClassDefFoundError`/`LinkageError`/`ClassCastException` **sıfır**. Fonksiyonel smoke (`http://127.0.0.1:8080` — `localhost` bu makinede Docker'ın IPv6 dinleyicisine düşüyor, `17-module-yenileme-runbook.md`'deki bilinen tuzak): `GET /api/products` → **200**, Oracle stored procedure'lerinden 5 gerçek kayıt; `GET /v3/api-docs` → **200**. |
+| SOAP örnek uygulaması WAR'ı | Hiçbir CXF jar'ı içermemeli | ✅ `zeus-sample-soap` WAR'ında `cxf`/`wsdl4j` eşleşmesi **0** (8 jar toplam, hepsi `zeus-*`) |
+| ojdbc | WAR'da **0** kopya | ✅ `spring-wildfly-arch` WAR'ında `WEB-INF/lib/ojdbc*` **0** |
+| `test-project--service` | Bugün silinen jar'lar WAR'a girmeli, deploy geçmeli | **doğrulanmadı — bu ortamda erişilemiyor.** Uygulama Windows geliştirme makinesinde (`D:/dvl_ij/...`); bu workspace'te yok. |
+| bff / standalone WAR'ları | Değişmemeli (property boş kalır) | ✅ `zeus-bff-parent`/`zeus-standalone-parent`'ta `<zeus.war.packaging-excludes/>` hâlâ boş; `zeus-sample-bff` 52 jar, `zeus-sample-standalone` 40 jar (fat WAR — dışlama yok) |
+
+Ayrıca: altı test (`test-generate-war-excludes.sh`, `test-war-packaging.sh`,
+`test-war-packaging-soap.sh`, `test-no-war-keep.sh`, `test-coverage-guard.sh`,
+`test-generator-wiring.sh`) + `./scripts/generate-war-excludes.sh --check` + framework
+`mvn clean install` (testler dahil, `-DskipTests` yok) hepsi ✅.
 
 ## İlgili
 

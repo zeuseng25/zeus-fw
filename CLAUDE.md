@@ -101,6 +101,8 @@ Bağımlılık/kod değişince framework'ü yeniden kur; tüketen uygulamalar (`
 WILDFLY_HOME=/path/staging-wildfly ./scripts/install-zeus-module.sh   # staging hedefi
 ./scripts/slot-inventory.sh                                       # hangi slot kurulu / hangi app hangi slot'ta + politika denetimi
 SLOT=1.1.0 WILDFLY_HOME=/path/staging ./scripts/verify-staging.sh <app>  # restart'sız slot doğrulama gate'i
+./scripts/generate-war-excludes.sh --check    # WAR dışlama listeleri module ile uyumlu mu
+# install-zeus-module.sh bunu kendi sonunda --write ile zaten çağırır.
 # main slot'u güncellenince WildFly RESTART şart; YENİ slot eklemek restart gerektirmez.
 # Uygulamalar slot'a, build'de üretilen descriptor'daki zeus.module.slot ile bağlanır
 # (bkz. gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md).
