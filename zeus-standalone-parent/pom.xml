@@ -38,20 +38,18 @@
              hiçbir jar WAR'dan atılmaz. Uygulama com.zeus module yaşam döngüsünden tamamen
              bağımsızdır; module'ün kurulu olmadığı bir WildFly'a da deploy edilebilir.
 
-             SONUÇ: zeus.war.keep bu parent'ta ANLAMSIZDIR (dışlama zaten yok) ve
-             zeus.module.slot KULLANILMAZ (descriptor module'e referans vermez).
+             SONUÇ: zeus.module.slot KULLANILMAZ (descriptor module'e referans vermez).
              verify-module-coverage.sh bu property'nin boş olmasına bakarak kapsam
              denetimini atlar. -->
         <zeus.war.packaging-excludes/>
 
-        <!-- Miras alınan ama BU TİPTE ANLAMSIZ property'ler — bilinçli olarak boşaltılır.
-             zeus-parent bunlara varsayılan atar (slot=main, keep=boş); boşaltılmazsa
-             effective-pom'da "slot: main" görünür ve okuyan kişi uygulamanın com.zeus'a
-             bağlandığını sanır. Boşaltmak niyeti dürüstçe gösterir.
-             Risk yok: descriptor-standalone şablonu bu property'lere referans vermez
+        <!-- Miras alınan ama BU TİPTE ANLAMSIZ bir property — bilinçli olarak boşaltılır.
+             zeus-parent'ta varsayılanı 'main'dir; boşaltılmazsa effective-pom'da
+             "slot: main" görünür ve okuyan kişi uygulamanın com.zeus'a bağlandığını sanır.
+             Boşaltmak niyeti dürüstçe gösterir.
+             Risk yok: descriptor-standalone şablonu bu property'e referans vermez
              (descriptor-standard 3, descriptor-soap 1, descriptor-standalone 0 kez kullanır). -->
         <zeus.module.slot/>   <!-- bu tip com.zeus module'üne bağlanmaz -->
-        <zeus.war.keep/>      <!-- WAR dışlaması yok → bundle istisnası da anlamsız -->
     </properties>
 
     <dependencies>

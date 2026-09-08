@@ -44,39 +44,34 @@ kütüphaneye ihtiyaç duyabilir. İki seçenek vardır:
 | Kütüphane türü | Nereye | Nasıl |
 |----------------|--------|-------|
 | **Genel/paylaşılan** (≥2 app) | Paylaşımlı `com.zeus` module | `zeus-wildfly-module/pom.xml`'e ekle → module'ü yeniden üret + restart. |
-| **App'e özel** (yalnız 1 app) | O app'in **kendi WAR'ı** (WEB-INF/lib) | App pom'unda `${zeus.war.keep}` property'sini set et. |
+| **App'e özel** (yalnız 1 app) | O app'in **kendi WAR'ı** (WEB-INF/lib) | Hiçbir şey yazılmaz — otomatik. |
+
+> **App-specific bağımlılık.** Yalnız bir uygulamanın kullandığı ve paylaşımlı module'e
+> konması gerekmeyen bir kütüphane, hiçbir şey yazılmadan **WAR'da taşınır**: dışlama
+> listesi yalnız module'ün sağladığı jar'ları kapsar, gerisi otomatik WAR'a girer
+> (`19-war-paketleme-module-farkindaligi.md`). Eskiden bunun için `zeus.war.keep` ile elle
+> önek yazmak gerekiyordu; o property kaldırıldı.
 
 **Neden module'e değil WAR'a:** App'e özel lib paylaşımlı module'e konursa **diğer tüm uygulamalara
 dayatılır** (gereksiz şişme + lockstep yükü). WAR'a konunca yalnız o app'i etkiler. WildFly'da çalışır
 çünkü app kodu + `WEB-INF/lib/<lib>` **aynı WAR classloader'ındadır** (kısıt yalnızca "module sınıfları
 WAR'ı göremez"; app-specific lib'i sadece app kodu kullandığından sorun değil).
 
-**Kullanım** — app pom'u (war-plugin'i **override etmeden**, sadece property):
-```xml
-<properties>
-    <!-- foo-*.jar ve bar-*.jar bu app'in WAR'ında kalsın (module'e GİRMEZ) -->
-    <zeus.war.keep>|foo-|bar-</zeus.war.keep>
-</properties>
-```
-`zeus-parent`'taki regex `%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]` bu önekleri dışlama
-dışı bırakır. **Varsayılan boş** → davranış değişmez (yalnız `zeus-*` WAR'da kalır). Önek, jar adının
-başıyla eşleşmeli (ör. `foo-1.0.jar` için `|foo-`).
-
-> Uyarı: `${zeus.war.keep}`'e koyduğun lib **module'e girmediği** için, onu **module'deki bir sınıf
+> Uyarı: WAR'da taşınan bir lib **module'e girmediği** için, onu **module'deki bir sınıf
 > kullanamaz** (module → WAR görünmez). Yalnız app'in kendi kodu kullanabilir. Module'deki Spring/Hibernate
 > gibi bir bileşenin görmesi gereken bir lib ise → o, app-specific değildir; `zeus-wildfly-module`'e konmalı.
 
 ### Module kapsam kontrolü (deploy guard) — sessiz tuzağı erkene çeker
 
 `zeus-dependencies` BOM ~1000+ lib'in **sürümünü** yönetir; bir app bunlardan birini sürümsüz ekleyince
-**derlenir ve `local` profilde çalışır**, ama lib `zeus-wildfly-module`'de (dolayısıyla module'de) yoksa ve
-`zeus.war.keep` ile WAR'a da konmamışsa **WildFly'da `NoClassDefFoundError`** olur — genelde deploy anında,
-kriptik bir hatayla. Bu uçurumu deploy'dan ÖNCE yakalamak için:
+**derlenir ve `local` profilde çalışır**, ama lib `zeus-wildfly-module`'de (dolayısıyla module'de)
+yoksa **WildFly'da `NoClassDefFoundError`** olur — genelde deploy anında, kriptik bir hatayla.
+Bu uçurumu deploy'dan ÖNCE yakalamak için:
 
 - **`zeus-fw/scripts/verify-module-coverage.sh <app-dir>`** — app'in runtime bağımlılık kapanışını
-  (`dependency:list`) alır; `zeus-*`, WildFly'ın verdiği `jakarta.*-api` ve `zeus.war.keep` öneklerini
-  düşer; geriye kalan her jar `modules/com/zeus/main/`'de var mı diye bakar. Eksik varsa **non-zero exit**
-  ve net çözüm mesajı (zeus-wildfly-module'e ekle **veya** zeus.war.keep) verir.
+  (`dependency:list`) alır; `zeus-*` ve WildFly'ın verdiği `jakarta.*-api` öneklerini düşer;
+  geriye kalan her jar `modules/com/zeus/main/`'de var mı diye bakar. Eksik varsa **non-zero exit**
+  ve net çözüm mesajı (zeus-wildfly-module'e ekle) verir.
 - Her uygulamanın **`deploy.sh`'ı bu kontrolü WAR'ı kopyalamadan önce çağırır** (module kuruluysa). Kapsam
   dışı dep varsa deploy hiç başlamaz. `SKIP_COVERAGE=1` ile atlanabilir.
 

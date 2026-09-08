@@ -3,9 +3,9 @@
 # Module kapsam doğrulaması (PLATFORM scripti).
 #
 # Bir uygulamanın runtime 3. parti bağımlılıklarının, paylaşımlı WildFly 'com.zeus'
-# module'ü tarafından karşılanıp karşılanmadığını denetler. Module'de OLMAYAN ve WAR'a da
-# (zeus.war.keep) bundle edilmeyen bir bağımlılık varsa, WildFly'da NoClassDefFoundError
-# olmadan ÖNCE non-zero exit ile uyarır → deploy'dan önce yakalanır.
+# module'ü tarafından karşılanıp karşılanmadığını denetler. Module'de OLMAYAN bir bağımlılık
+# WAR'da taşınır (denylist paketleme); WildFly'da NoClassDefFoundError olmadan ÖNCE
+# non-zero exit ile uyarır → deploy'dan önce yakalanır.
 #
 # Neden gerekli: zeus-dependencies BOM ~1000+ lib'in SÜRÜMÜNÜ yönetir (app sürümsüz
 # ekleyebilir, derlenir, lokalde çalışır), ama yalnız zeus-wildfly-module'deki küçük
@@ -90,12 +90,6 @@ if [[ ! -f "${MODULE_DIR}/module.xml" ]]; then
     exit 2
 fi
 
-# App'in zeus.war.keep değeri (WAR'a bundle edilenler → module'de aranmaz)
-KEEP="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.war.keep -DforceStdout 2>/dev/null || true)"
-[[ "${KEEP}" == "null"* ]] && KEEP=""
-KEEP_PREFIXES=()
-[[ -n "${KEEP}" ]] && IFS='|' read -ra KEEP_PREFIXES <<< "${KEEP}"
-
 # App'in runtime bağımlılık kapanışı
 TMP="$(mktemp -d)"; trap 'rm -rf "${TMP}"' EXIT
 echo ">> Kapsam denetimi: $(basename "${APP_DIR}") runtime bağımlılıkları vs com.zeus:${SLOT} module"
@@ -131,14 +125,6 @@ while IFS= read -r line; do
     else
         jar="${aid}-${ver}.jar"
     fi
-    # zeus.war.keep ile WAR'a bundle edilenler → atla
-    skip=0
-    if [[ ${#KEEP_PREFIXES[@]} -gt 0 ]]; then
-        for p in "${KEEP_PREFIXES[@]}"; do
-            [[ -n "${p}" && "${jar}" == "${p}"* ]] && { skip=1; break; }
-        done
-    fi
-    [[ "${skip}" == 1 ]] && continue
     # module'de fiziksel var mı? (SOAP tipinde com.zeus.soap da aranır)
     if [[ ! -f "${MODULE_DIR}/${jar}" ]]; then
         if [[ -n "${SOAP_MODULE_DIR}" && -f "${SOAP_MODULE_DIR}/${jar}" ]]; then
@@ -161,8 +147,7 @@ if [[ ${#missing[@]} -gt 0 ]]; then
     echo "   Çözüm:" >&2
     echo "     • Genel/paylaşılan lib  → zeus-fw/zeus-wildfly-module/pom.xml'e ekle," >&2
     echo "                               ./scripts/install-zeus-module.sh + WildFly restart" >&2
-    echo "     • Yalnız bu app'e özel  → app pom'unda <zeus.war.keep>|<artifactId-öneki>-</zeus.war.keep>" >&2
     exit 1
 fi
 
-echo "✅ Module kapsamı tam: tüm runtime bağımlılıklar com.zeus:${SLOT} module'de (veya zeus.war.keep ile WAR'da)."
+echo "✅ Module kapsamı tam: tüm runtime bağımlılıklar com.zeus:${SLOT} module'de."

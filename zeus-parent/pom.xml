@@ -19,15 +19,6 @@
         zeus-dependencies BOM import'u + ortak plugin yönetimi.</description>
 
     <properties>
-        <!-- App-specific WAR-bundle opt-in'i (ince WAR istisnası).
-             Varsayılan BOŞ → yalnız zeus-* jar'ları WAR'da kalır (3. parti hep module'den).
-             Bir uygulamanın YALNIZCA kendi kullandığı, framework'te/paylaşımlı module'de OLMAYAN
-             bir kütüphaneyi kendi WAR'ında taşıması gerekiyorsa, app pom'unda bu property'yi
-             '|<artifactId-öneki>-' biçiminde set eder (war-plugin config'ini override ETMEDEN).
-             Örn: <zeus.war.keep>|foo-|bar-</zeus.war.keep>
-             Detay: zeus-fw/gelistirmeler/08-wildfly-module-dagitim.md (App-specific dependency). -->
-        <zeus.war.keep/>
-
         <!-- Uygulamanın bağlanacağı paylaşımlı WildFly module SLOT'u (com.zeus:<slot>).
              Üretilen jboss-deployment-structure.xml'e filtering ile yazılır (zeus-war-defaults
              şablonu + aşağıdaki zeus-generated-descriptor profili).
@@ -144,10 +135,10 @@
                      (scripts/install-zeus-module.sh); uygulamalar module oluşturamaz / module'e jar
                      ekleyemez — yalnızca kendi ince WAR'larını deploy eder.
 
-                     İSTİSNA (app-specific): Bir app, framework'te olmayan ve YALNIZ kendi kullandığı
-                     bir kütüphaneyi kendi WAR'ında taşımak isterse ${zeus.war.keep} property'sini set
-                     eder (plugin override etmeden). Regex o öneki dışlama dışı bırakır → jar WAR'da
-                     kalır, paylaşımlı module'e GİRMEZ. Varsayılan boşken davranış: yalnız zeus-*. -->
+                     İSTİSNA (app-specific): Bir app, framework'te/paylaşımlı module'de olmayan ve
+                     YALNIZ kendi kullandığı bir kütüphaneyi kendi WAR'ında taşıması için bir şey
+                     yazması GEREKMEZ: dışlama listesi yalnız module'ün sağladıklarını kapsar,
+                     gerisi otomatik WAR'a girer. -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-war-plugin</artifactId>
