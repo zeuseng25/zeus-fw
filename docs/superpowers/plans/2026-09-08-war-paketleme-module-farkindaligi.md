@@ -57,8 +57,8 @@ check() { # $1=aciklama $2=beklenen(0=var,1=yok) $3=desen $4=metin
 
 echo ">> standard listesi"
 STD="$(${GEN} --print standard)" || { echo "❌ script hata verdi"; exit 1; }
-check "spring-core VAR (module'de)"            0 '\(|\|)spring-core(\||\))'      "${STD}"
-check "hibernate-core VAR (module'de)"         0 '\(|\|)hibernate-core(\||\))'   "${STD}"
+check "spring-core VAR (module'de)"            0 '[(|]spring-core[|)]'           "${STD}"
+check "hibernate-core VAR (module'de)"         0 '[(|]hibernate-core[|)]'        "${STD}"
 check "zeus-base YOK (WAR'da taşınır)"         1 'zeus-base'                     "${STD}"
 check "commons-io YOK (module'de değil)"       1 'commons-io'                    "${STD}"
 check "ojdbc sabit kuyruğu VAR"                0 'ojdbc\[0-9\]\+'                "${STD}"
@@ -69,7 +69,7 @@ check "%regex sarmalayıcı VAR"                 0 '^%regex\[WEB-INF/lib/'      
 echo ">> soap listesi"
 SOAP="$(${GEN} --print soap)" || { echo "❌ script hata verdi"; exit 1; }
 check "cxf-core VAR (com.zeus.soap'ta)"        0 'cxf-core'                      "${SOAP}"
-check "spring-core VAR (birleşim)"             0 '\(|\|)spring-core(\||\))'      "${SOAP}"
+check "spring-core VAR (birleşim)"             0 '[(|]spring-core[|)]'           "${SOAP}"
 check "zeus-soap YOK (WAR'da taşınır)"         1 'zeus-soap'                     "${SOAP}"
 
 echo ">> soap listesi standard'ın üst kümesi olmalı"
@@ -516,7 +516,13 @@ Beklenen: `zeus-parent/pom.xml`, `scripts/verify-module-coverage.sh` ve `gelisti
 
 - [ ] **Step 3: Üç dosyadan kaldır**
 
-1. `zeus-parent/pom.xml` — `<zeus.war.keep/>` property'sini ve üstündeki 8 satırlık açıklama yorumunu sil.
+1. `zeus-parent/pom.xml` — **İKİ yer**:
+   - `<zeus.war.keep/>` property'si ve üstündeki 8 satırlık açıklama yorumu (≈ satır 21-29) — sil.
+   - `maven-war-plugin` yorumundaki `${zeus.war.keep}` göndermesi (≈ satır 142, "…bir kütüphaneyi
+     kendi WAR'ında taşımak isterse `${zeus.war.keep}` property'sini set…") — cümleyi şununla
+     değiştir: "…bir kütüphaneyi kendi WAR'ında taşıması için bir şey yazması GEREKMEZ: dışlama
+     listesi yalnız module'ün sağladıklarını kapsar, gerisi otomatik WAR'a girer."
+   `grep -n 'zeus\.war\.keep' zeus-parent/pom.xml` **hiçbir sonuç vermemeli**.
 2. `scripts/verify-module-coverage.sh` — `KEEP=`, `KEEP_PREFIXES=`, ve döngüdeki `zeus.war.keep ile WAR'a bundle edilenler → atla` bloğunu (`skip=0` … `[[ "${skip}" == 1 ]] && continue`) sil.
 3. `gelistirmeler/08-wildfly-module-dagitim.md` — `zeus.war.keep` geçen paragrafları, denylist kuralını anlatacak şekilde yeniden yaz:
 
