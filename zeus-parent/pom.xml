@@ -46,6 +46,36 @@
              descriptor-bff (zeus-bff-parent). Varsayılan: standart ince-WAR REST tipi. -->
         <zeus.descriptor.dir>descriptor-standard</zeus.descriptor.dir>
 
+        <!-- Uygulamaya özel EK deployment module bağımlılıkları (varsayılan: BOŞ — bu property
+             eklenmekle hiçbir mevcut uygulamanın davranışı değişmez). Değeri, ince WAR
+             (standard/soap) şablonlarındaki <dependencies> bloğuna OLDUĞU GİBİ yazılır; XML
+             parçası olduğu için uygulama pom'unda entity ile kaçırılır:
+
+               <zeus.descriptor.extra.modules>&amp;lt;module name="com.oracle.ojdbc"/&amp;gt;</zeus.descriptor.extra.modules>
+
+             NE ZAMAN GEREKİR: uygulama (tipik olarak devralınan bir util katmanı) sürücü ya da
+             3. parti sınıflara KOD olarak bağlıysa — Class.forName("oracle.jdbc.OracleDriver"),
+             Connection'ı OracleConnection'a unwrap, OracleTypes.CURSOR gibi. İnce WAR'da o
+             sınıflar KASTEN yoktur (WEB-INF/lib'de yok, com.zeus module'ünde yok) → deploy
+             "could not load JDBC driver class" ile düşer. Datasource'un jboss-cli testi bu
+             durumda YEŞİLDİR: sunucu sürücüyü yükleyebiliyordur, yükleyemeyen deployment'tır.
+
+             NEDEN JAR KOPYASI DEĞİL DE MODULE IMPORT: sunucunun com.oracle.ojdbc module'ü,
+             JCA katmanının datasource için kullandığı module'ün TA KENDİSİDİR; import edilince
+             sınıf kimliği tek kalır. Jar'ı WAR'a veya com.zeus'a kopyalamak ise İKİNCİ bir
+             kopya yaratır → JNDI'dan gelen Connection ile uygulamanın gördüğü tip ayrışır →
+             ClassCastException/LinkageError (gelistirmeler/08-wildfly-module-dagitim.md).
+
+             FAT WAR TİPLERİNDE ETKİSİZDİR (bilinçli): zeus-bff-parent / zeus-standalone-parent
+             şablonlarında <dependencies> bloğu yoktur ve sürücü zaten WAR'ın içindedir; orada
+             module import etmek tam da kaçınılan çift kopyayı yaratırdı. O tiplerin çözümü
+             sürücüyü 'provided' bildirmektir (gelistirmeler/14-uygulama-tipi-parentlar.md).
+
+             Bu bir GEÇİŞ mekanizmasıdır, kalıcı hedef değil: doğru çözüm util'in sürücü
+             sınıflarına olan bağımlılığını kaldırmaktır (JNDI DataSource + java.sql.Types
+             .REF_CURSOR). Property'yi kullanan uygulama bunu teknik borç olarak izler. -->
+        <zeus.descriptor.extra.modules/>
+
         <!-- İnce WAR politikası (property üzerinden — TİP kararıdır, uygulama kararı değil):
              standart/soap tiplerinde yalnız zeus-* jar'ları WAR'da kalır; zeus-bff-parent bu
              property'yi BOŞALTIR (fat WAR: BFF izoledir, com.zeus module kullanmaz). -->

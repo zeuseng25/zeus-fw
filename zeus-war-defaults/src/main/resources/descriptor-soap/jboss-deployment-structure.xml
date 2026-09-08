@@ -26,6 +26,9 @@
                     services="import" meta-inf="import" annotations="true"/>
             <module name="com.zeus.soap" slot="${zeus.soap.module.slot}"
                     services="import" meta-inf="import" annotations="true"/>
+            <!-- Uygulamaya özel EK module'ler; varsayılan BOŞ (standart şablonla aynı
+                 mekanizma ve aynı gerekçe — zeus.descriptor.extra.modules). -->
+            ${zeus.descriptor.extra.modules}
         </dependencies>
     </deployment>
 </jboss-deployment-structure>

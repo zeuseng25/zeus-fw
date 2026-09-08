@@ -141,6 +141,15 @@ uygulamanın gördüğü tip diğerininki olur → `ClassCastException`/`Linkage
 aynı muameleyi görür. Sürücünün yolculuğu: **compile'da var → WAR'da yok → module'de yok →
 WildFly'da sunucunun module'ünden**.
 
+**Bu kural jar KOPYASI içindir, module IMPORT'u için değil.** Devralınan bir util katmanı
+sürücü sınıflarına kod olarak bağlıysa (`Class.forName`, `OracleConnection` unwrap,
+`OracleTypes.CURSOR`) ince WAR'da deploy `could not load JDBC driver class` ile düşer. Çözüm,
+sunucunun **kendi** `com.oracle.ojdbc` module'ünü deployment descriptor'ına import etmektir:
+JCA'nın kullandığı module'ün aynısı olduğu için sınıf kimliği tek kalır, çakışma olmaz.
+Mekanizma opt-in bir property'dir (`zeus.descriptor.extra.modules`) —
+`10-versiyonlu-slot-uretilen-descriptor.md`. Yasak olan hâlâ jar'ı WAR'a veya `com.zeus`'a
+**kopyalamaktır**.
+
 **Module geniştir, uygulama dardır — daraltma uygulamanın işidir.** Module tüm uygulamaların
 birleşimi olduğu için, bir uygulama kullanmadığı yeteneklerin jar'larını da classpath'inde
 görür ve **Spring Boot onları otomatik yapılandırmaya çalışır**. Veritabanı kullanmayan bir

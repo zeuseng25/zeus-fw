@@ -125,6 +125,66 @@ SLOT akışında farklar:
 - Promote artifact'ı slot dizininden üretilir (`com-zeus-module-<slot>-<stamp>.tar.gz`);
   prod talimatı restart'sızdır (tar aç → app'ler parent bump + redeploy → envanterle kapanış).
 
+## Uygulamaya özel ek module bağımlılığı (`zeus.descriptor.extra.modules`)
+
+**Varsayılan boştur; hiçbir mevcut uygulamanın davranışı değişmez.** İnce WAR şablonlarında
+(`descriptor-standard`, `descriptor-soap`) `<dependencies>` bloğunun sonunda bir yer tutucu
+vardır; `zeus-parent`'taki `zeus.descriptor.extra.modules` property'si doldurulduğunda değeri
+oraya girer.
+
+**Hangi sorunu çözer.** İnce WAR'da Oracle sürücü sınıfları deployment classloader'ında
+**kasten yoktur** (`WEB-INF/lib`'den `packagingExcludes` atar, `com.zeus` module'ünden
+`EXCLUDE_REGEX` atar — `08-wildfly-module-dagitim.md`). Uygulama JNDI'dan `DataSource` aldığı
+sürece buna ihtiyacı da olmaz. Ama **devralınan bir util katmanı** sürücü sınıflarına *kod
+olarak* bağlıysa — `Class.forName("oracle.jdbc.OracleDriver")`, `Connection`'ı
+`OracleConnection`'a unwrap, `OracleTypes.CURSOR` — deploy şu hatayla düşer:
+
+```
+could not load JDBC driver class / ClassNotFoundException: oracle.jdbc.OracleDriver
+```
+
+**Bu hatanın teşhis imzası:** `jboss-cli`'de `test-connection-in-pool` **yeşildir**. Sunucu
+sürücüyü yükleyebiliyordur; yükleyemeyen deployment'tır. Datasource testinin geçmesi sorunu
+sunucu tarafında aramaktan vazgeçmek için yeterli sebeptir.
+
+**Kullanımı** (uygulama pom'u; XML parçası olduğu için entity ile kaçırılır):
+
+```xml
+<properties>
+    <zeus.descriptor.extra.modules>&lt;module name="com.oracle.ojdbc"/&gt;</zeus.descriptor.extra.modules>
+</properties>
+```
+
+Üretilen descriptor:
+
+```xml
+<dependencies>
+    <module name="com.zeus" slot="main" services="import" meta-inf="import" annotations="true"/>
+    <module name="com.oracle.ojdbc"/>
+</dependencies>
+```
+
+**Neden bu, jar kopyalamaktan farklı ve güvenli.** `com.oracle.ojdbc`, JCA katmanının
+datasource için kullandığı module'ün **ta kendisidir**; import edilince sınıf kimliği tek
+kalır, JNDI'dan gelen `Connection` ile uygulamanın gördüğü tip aynı classloader'dandır.
+Yasak olan, sürücünün **ikinci bir kopyasını** (WAR'a veya `com.zeus`'a jar olarak) koymaktır
+— o durumda tipler ayrışır ve `ClassCastException`/`LinkageError` çıkar. İki durumu
+karıştırmamak kritiktir: **module import ≠ jar kopyası.**
+
+**Fat WAR tiplerinde etkisizdir (bilinçli).** `descriptor-bff` ve `descriptor-standalone`
+şablonlarında `<dependencies>` bloğu yoktur; sürücü zaten `WEB-INF/lib`'dedir ve module
+import etmek tam da kaçınılan çift kopyayı yaratırdı. O tiplerde çözüm sürücüyü `provided`
+bildirmektir — `14-uygulama-tipi-parentlar.md` → "Standalone + `zeus-database`".
+
+**Bu bir geçiş mekanizmasıdır, kalıcı hedef değil.** Doğru çözüm util'in sürücü sınıflarına
+olan bağımlılığını kaldırmaktır (JNDI `DataSource` + `java.sql.Types.REF_CURSOR`); o zaman
+property de kaldırılır. Kullanan uygulama bunu teknik borç olarak izler.
+
+**Doğrulandı (2026-09-08):** boş property → descriptor eskisiyle aynı (yalnız yorum satırı
+eklendi); dolu property → `<module name="com.oracle.ojdbc"/>` descriptor'a giriyor ve
+`WEB-INF/lib`'de ojdbc jar sayısı **0** kalıyor (kopya oluşmuyor). Dört şablon da XML olarak
+geçerli. Runtime deploy'u sorunu yaşayan ortamda doğrulandı.
+
 ## CVE rollout'u slot'larla (hedef akış)
 
 ```
