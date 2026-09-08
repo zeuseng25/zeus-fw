@@ -65,6 +65,26 @@ list_soap() {
       closure_artifact_ids zeus-soap-wildfly-module; } | sort -u | build_regex
 }
 
+BEGIN_MARK='<!-- ZEUS-WAR-EXCLUDES:BEGIN — ÜRETİLMİŞTİR, ELLE DÜZENLEMEYİN (scripts/generate-war-excludes.sh) -->'
+END_MARK='<!-- ZEUS-WAR-EXCLUDES:END -->'
+
+# POM'daki marker bloğunu yeni property ile değiştirir.
+write_pom() {  # $1=pom yolu  $2=regex
+    local pom="$1" regex="$2"
+    [[ -f "${pom}" ]] || { echo ">> atlandı (yok): ${pom}"; return 0; }
+    grep -q 'ZEUS-WAR-EXCLUDES:BEGIN' "${pom}" || { echo ">> atlandı (marker yok): ${pom}"; return 0; }
+    BEGIN_MARK="${BEGIN_MARK}" END_MARK="${END_MARK}" REGEX="${regex}" python3 - "${pom}" <<'PY'
+import io,os,re,sys
+pom=sys.argv[1]; b=os.environ['BEGIN_MARK']; e=os.environ['END_MARK']; rx=os.environ['REGEX']
+s=io.open(pom,encoding='utf-8').read()
+i=s.index(b); j=s.index(e)+len(e)
+indent=' '*8
+block=(b+"\n"+indent+"<zeus.war.packaging-excludes>"+rx+"</zeus.war.packaging-excludes>\n"+indent+e)
+io.open(pom,'w',encoding='utf-8').write(s[:i]+block+s[j:])
+PY
+    echo ">> güncellendi: ${pom}"
+}
+
 case "${1:---write}" in
     --print)
         case "${2:-standard}" in
@@ -73,5 +93,34 @@ case "${1:---write}" in
             *) echo "bilinmeyen liste: ${2}" >&2; exit 2 ;;
         esac
         ;;
-    *) echo "bu adımda yalnız --print destekleniyor" >&2; exit 2 ;;
+    --write)
+        write_pom "${FW_ROOT}/zeus-parent/pom.xml"      "$(list_standard)"
+        write_pom "${FW_ROOT}/zeus-soap-parent/pom.xml" "$(list_soap)"
+        ;;
+    --check)
+        tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
+        cp "${FW_ROOT}/zeus-parent/pom.xml" "${tmp}/std.bak"
+        cp "${FW_ROOT}/zeus-soap-parent/pom.xml" "${tmp}/soap.bak" 2>/dev/null || true
+        write_pom "${FW_ROOT}/zeus-parent/pom.xml"      "$(list_standard)" >/dev/null
+        write_pom "${FW_ROOT}/zeus-soap-parent/pom.xml" "$(list_soap)"     >/dev/null
+        rc=0
+        diff -q "${tmp}/std.bak" "${FW_ROOT}/zeus-parent/pom.xml" >/dev/null || rc=1
+        if [[ -f "${tmp}/soap.bak" ]]; then
+            diff -q "${tmp}/soap.bak" "${FW_ROOT}/zeus-soap-parent/pom.xml" >/dev/null || rc=1
+        fi
+        # POM'ları HER DURUMDA eski hâline döndür (--check yan etkisiz olmalı).
+        # NOT: `[[ ... ]] && cmd` KULLANMAYIN — `set -e` altında test false dönerse
+        # script oracıkta düşer ve POM'lar değiştirilmiş hâlde kalır.
+        cp "${tmp}/std.bak" "${FW_ROOT}/zeus-parent/pom.xml"
+        if [[ -f "${tmp}/soap.bak" ]]; then
+            cp "${tmp}/soap.bak" "${FW_ROOT}/zeus-soap-parent/pom.xml"
+        fi
+        if [[ "${rc}" != 0 ]]; then
+            echo "❌ Üretilmiş WAR dışlama listesi GÜNCEL DEĞİL. Çalıştırın: ./scripts/generate-war-excludes.sh --write" >&2
+        else
+            echo "✅ WAR dışlama listeleri module sözleşmeleriyle uyumlu."
+        fi
+        exit "${rc}"
+        ;;
+    *) echo "kullanım: $0 [--print standard|soap] [--write] [--check]" >&2; exit 2 ;;
 esac
