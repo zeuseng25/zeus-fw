@@ -34,14 +34,14 @@ echo ">> B) YENİ DAVRANIŞ: module'de olmayan bağımlılık WAR'a GİRMELİ"
 # enjekte edilmiş bağımlılıkla bırakırdı (fix round 1, Important 4). `mktemp` ile BENZERSİZ
 # bir yedek dosyası ve EXIT trap'i ile HER ÇIKIŞ YOLUNDA (başarı/hata/SIGINT) geri yükleme.
 app_pom_bak="$(mktemp "${TMPDIR:-/tmp}/wpt-pom.XXXXXX")"
+cp "${APP}/pom.xml" "${app_pom_bak}"
 restore_app_pom() {
-    if [[ -f "${app_pom_bak}" ]]; then
+    if [[ -s "${app_pom_bak}" ]]; then
         cp "${app_pom_bak}" "${APP}/pom.xml"
         rm -f "${app_pom_bak}"
     fi
 }
 trap restore_app_pom EXIT
-cp "${APP}/pom.xml" "${app_pom_bak}"
 python3 - "${APP}/pom.xml" <<'PY'
 import io,sys
 p=sys.argv[1]; s=io.open(p,encoding='utf-8').read()
