@@ -61,34 +61,41 @@ WAR'ı göremez"; app-specific lib'i sadece app kodu kullandığından sorun de�
 > kullanamaz** (module → WAR görünmez). Yalnız app'in kendi kodu kullanabilir. Module'deki Spring/Hibernate
 > gibi bir bileşenin görmesi gereken bir lib ise → o, app-specific değildir; `zeus-wildfly-module`'e konmalı.
 
-### Module kapsam kontrolü (deploy guard) — sessiz tuzağı erkene çeker
+### Module kapsam kontrolü (deploy guard) — bugün ne yapıyor
 
-`zeus-dependencies` BOM ~1000+ lib'in **sürümünü** yönetir; bir app bunlardan birini sürümsüz ekleyince
-**derlenir ve `local` profilde çalışır**, ama lib `zeus-wildfly-module`'de (dolayısıyla module'de)
-yoksa **WildFly'da `NoClassDefFoundError`** olur — genelde deploy anında, kriptik bir hatayla.
-Bu uçurumu deploy'dan ÖNCE yakalamak için:
+WAR paketlemesi **denylist**'e geçtiğinden beri (`19-war-paketleme-module-farkindaligi.md`),
+module'de olmayan bir bağımlılık artık "eksik" değildir — **otomatik olarak WAR'ın içinde
+taşınır**. Bu yüzden eskiden var olan "app'in kapanışındaki her jar module'de mi?" kontrolü
+**kaldırıldı**: bugün onu çalıştırmak, gerçekte deploy'u kırmayacak bir durumu yanlış pozitif
+olarak işaretlerdi.
 
-- **`zeus-fw/scripts/verify-module-coverage.sh <app-dir>`** — app'in runtime bağımlılık kapanışını
-  (`dependency:list`) alır; `zeus-*` ve WildFly'ın verdiği `jakarta.*-api` öneklerini düşer;
-  geriye kalan her jar `modules/com/zeus/main/`'de var mı diye bakar. Eksik varsa **non-zero exit**
-  ve net çözüm mesajı (zeus-wildfly-module'e ekle) verir.
-- Her uygulamanın **`deploy.sh`'ı bu kontrolü WAR'ı kopyalamadan önce çağırır** (module kuruluysa). Kapsam
-  dışı dep varsa deploy hiç başlamaz. `SKIP_COVERAGE=1` ile atlanabilir.
+`zeus-fw/scripts/verify-module-coverage.sh <app-dir>`, deploy'dan önce hâlâ **iki gerçek hatayı**
+yakalar:
 
-> **Denetimin SINIRI (zeus-ai eklenirken öğrenildi):** bu kontrol "jar module'de var mı?" sorusunu
-> cevaplar, "sınıflar **link olur mu**?" sorusunu cevaplayamaz. Module'e yeni bir Spring modülü
-> girdiğinde (ör. Spring AI ile gelen `spring-webflux`), o modülün ihtiyaç duyduğu **jakarta API
-> module'leri** de üretilen module.xml'in `<dependencies>` listesinde olmalıdır — yoksa deploy
-> POST_MODULE anotasyon taramasında `NoClassDefFoundError` ile düşer (yaşanan örnek:
-> `jakarta.websocket.Endpoint`). Ayrıntı: `15-zeus-ai.md`.
->
-> Ayrıca aynı turda düzeltilen bir script hatası: `dependency:list` çıktısında **classifier'lı**
-> artefaktlar bir alan fazladır (`gid:aid:jar:classifier:version:scope`); sürümü sabit 4. alandan
-> okumak netty native transport'larını yanlışlıkla "eksik" gösteriyordu.
+1. **Slot kurulu mu?** — uygulamanın hedeflediği `com.zeus` slot'u (`zeus.module.slot`)
+   sunucuda kurulu değilse, kriptik bir açılış hatası yerine net mesajla (hangi komutla
+   kurulacağı dahil) burada durur.
+2. **Descriptor üretilmiş mi?** — WAR'da framework'ün ürettiği
+   `jboss-deployment-structure.xml` yoksa (`zeus-generated-descriptor` profili devreye
+   girmemiştir), WAR WildFly'da `com.zeus`'u hiç göremez; bu da burada erken yakalanır.
 
-Böylece "BOM'da var → her yerde çalışır" yanılgısı, geç ve kriptik bir runtime hatası yerine erken ve
-çözümü söyleyen bir deploy hatasına dönüşür; aynı zamanda `zeus-wildfly-module`'ün app'lerin gerisinde
-kalmasının (drift) otomatik güvenlik ağıdır.
+Self-contained WAR'larda (`zeus.war.packaging-excludes` boş — standalone/BFF tipi) denetim
+tamamen atlanır: com.zeus module'ü zaten kullanılmaz. Her uygulamanın **`deploy.sh`'ı bu
+kontrolü WAR'ı kopyalamadan önce çağırır**; `SKIP_COVERAGE=1` ile atlanabilir.
+
+**Kaybedilen şey:** artık `zeus-wildfly-module`'ün uygulamaların runtime ihtiyacının gerisine
+düşmesini (drift) otomatik yakalayan bir ağ **yok**. Bir app, module'de olmayan bir bağımlılığı
+sessizce WAR'ında taşımaya başlayabilir ve kimse fark etmeyebilir. Bu bir gözden kaçma değil,
+**bilinçli kabul edilen bir taviz**dir — uyarı mekanizması istenmediği için alınmış bir karardır
+(bkz. `19-war-paketleme-module-farkindaligi.md` → "Bilinçli kabul edilen taviz").
+
+> **Denetimin SINIRI (zeus-ai eklenirken öğrenildi):** kalan kontroller "slot kurulu mu?" ve
+> "descriptor üretilmiş mi?" sorularını cevaplar, "sınıflar **link olur mu**?" sorusunu
+> cevaplayamaz. Module'e yeni bir Spring modülü girdiğinde (ör. Spring AI ile gelen
+> `spring-webflux`), o modülün ihtiyaç duyduğu **jakarta API module'leri** de üretilen
+> module.xml'in `<dependencies>` listesinde olmalıdır — yoksa deploy POST_MODULE anotasyon
+> taramasında `NoClassDefFoundError` ile düşer (yaşanan örnek: `jakarta.websocket.Endpoint`).
+> Ayrıntı: `15-zeus-ai.md`.
 
 ## `zeus-wildfly-module` — bağımlılık sözleşmesi
 
