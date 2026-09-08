@@ -210,3 +210,21 @@ else
     echo "   NOT: yeni slot — WildFly restart GEREKMEZ. Uygulamalar zeus.module.slot=${SLOT}"
     echo "        üreten parent sürümüne geçip yeniden deploy olduklarında bu slot'a bağlanır."
 fi
+
+# --- 6) WAR dışlama listelerini AYNI kapanıştan yeniden üret ---
+# Module ve liste artık TEK komuttan çıkar; bu yüzden ikisinin ayrışması (drift) yapısal
+# olarak imkânsızdır ve ayrı bir senkron denetimine gerek kalmaz.
+# BİLEREK SONA (✅ mesajından SONRA) konur: bu noktada module ZATEN sunucuya kuruldu —
+# yukarıdaki ✅ doğru bir bilgidir ve üretici düşse bile geri alınmaz. Üretici düşerse
+# kullanıcının "module kuruldu ama listeler güncellenmedi" karışık bir durumda kalmaması
+# için bunu module'ün kendi başarı mesajından AYRI, açık bir HATA ile bildiriyoruz
+# (generate-war-excludes.sh'ın kendi HATA çıktısına ek olarak).
+# Atlamak için (ör. WAR olmayan/soap-yalnız bir kurulum akışında): ZEUS_SKIP_WAR_EXCLUDES=1
+if [[ "${ZEUS_SKIP_WAR_EXCLUDES:-0}" != "1" ]]; then
+    echo ">> WAR dışlama listeleri yeniden üretiliyor (zeus-parent + zeus-soap-parent)..."
+    if ! "$(dirname "${BASH_SOURCE[0]}")/generate-war-excludes.sh" --write; then
+        echo "HATA: ${MODULE_NAME}:${SLOT} module KURULDU ama WAR dışlama listeleri GÜNCELLENEMEDİ." >&2
+        echo "      Elle çalıştırın: ./scripts/generate-war-excludes.sh --write" >&2
+        exit 1
+    fi
+fi
