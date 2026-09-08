@@ -222,7 +222,7 @@ fi
 # Atlamak için (ör. WAR olmayan/soap-yalnız bir kurulum akışında): ZEUS_SKIP_WAR_EXCLUDES=1
 if [[ "${ZEUS_SKIP_WAR_EXCLUDES:-0}" != "1" ]]; then
     echo ">> WAR dışlama listeleri yeniden üretiliyor (zeus-parent + zeus-soap-parent)..."
-    if ! "$(dirname "${BASH_SOURCE[0]}")/generate-war-excludes.sh" --write; then
+    if ! "${ZEUS_FW_DIR}/scripts/generate-war-excludes.sh" --write; then
         echo "HATA: ${MODULE_NAME}:${SLOT} module KURULDU ama WAR dışlama listeleri GÜNCELLENEMEDİ." >&2
         echo "      Elle çalıştırın: ./scripts/generate-war-excludes.sh --write" >&2
         exit 1
