@@ -117,8 +117,19 @@ raporlar, CI için).
   kullanmıyor; property, kullanımları ve dokümantasyonu silinir.
 - **`verify-module-coverage.sh`'ın "eksik bağımlılık" dalı** — artık **yanlış pozitif**
   üretir: eksik olan jar WAR'da taşınacağı için deploy'u durdurmak yanlıştır. Bu dal ve
-  `EXCLUDE_REGEX`/`KEEP` mantığı silinir. **Slot-kurulu-mu** ve **üretilmiş-descriptor**
-  kontrolleri kalır; ikisi de hâlâ gerçek hataları yakalar.
+  `EXCLUDE_REGEX`/`KEEP` mantığı silinir. **Slot-kurulu-mu** (uygulama SOAP tipiyse
+  `com.zeus` VE `com.zeus.soap` slot'ları için) ve **üretilmiş-descriptor** kontrolleri
+  kalır; ikisi de hâlâ gerçek hataları yakalar.
+
+  Bunların yerine **ters yönlü** bir kontrol eklenir (aşağıdaki §4'ün simetriği):
+  **"WAR'dan sildiğimiz her artifactId hedeflenen slot'ta GERÇEKTEN var olmalı."**
+  Gerekçe: üretilen liste her zaman çalışma ağacındaki `zeus-wildfly-module` kapanışından
+  doğar ve uygulamanın bağlandığı `zeus.module.slot` ile yapısal bir bağı yoktur. Module
+  yalnız staging'e kurulmuşsa ya da app eski bir immutable slot'u hedefliyorsa, o slot'ta
+  OLMAYAN bir jar WAR'dan atılır → `NoClassDefFoundError`. §4'ün kabul ettiği taviz bunun
+  TERSİDİR (module'de olmayanın WAR'a konması, ki zararsızdır); bu yön kabul edilmiş bir
+  taviz değildir. Kontrol, aşağıdaki **sabit kuyruk** girdilerini kapsam dışı tutar —
+  onlar module'de bilerek yoktur; tutulmasaydı guard her zaman kırmızı olurdu.
 
 ### 4) Bilinçli kabul edilen taviz
 
@@ -144,11 +155,20 @@ olarak eklenir:
 | `ojdbc[0-9]+`, `orai18n`, `ucp[0-9]+` | WildFly'ın kendi `com.oracle.ojdbc` module'ünden gelir; datasource ona bağlıdır. WAR'da ikinci kopya olursa JNDI'dan gelen `Connection` ile uygulamanın gördüğü tip ayrışır → `ClassCastException` (`08-wildfly-module-dagitim.md`). |
 | `jakarta.*-api` | WildFly server module'lerinden gelir. WAR'daki kopya konteynerin API'siyle çakışır → `LinkageError`. |
 | `lombok`, `spring-boot-jarmode-*` | Runtime'da işlevsiz; WAR'ı şişirir. |
+| `tomcat-embed-*`, `spring-boot-tomcat`, `spring-boot-starter-tomcat[-runtime]` | Konteyner WildFly/Undertow'dur; gömülü Tomcat'in WAR'da işi yoktur. `tomcat-embed-core` **146 adet `jakarta/servlet/**` sınıfı** taşır → deployment classloader'ında servlet API'sinin ikinci kopyası → `jakarta.*-api` girdisinin önlemek için var olduğu `LinkageError`'un ta kendisi (kural jar'ın İÇİNDEKİNE değil artifactId YAZILIŞINA baktığı için yanından dolaşarak). `packagingExcludes` yalnız paketlemeyi etkiler; `spring-boot:run` / `local` profil bundan etkilenmez. |
 
 **Kural tek cümlede:** sabit kuyruk, `install-zeus-module.sh`'ın `EXCLUDE_REGEX`'inden
-`zeus-*` çıkarılmış hâlidir. O regex zaten "module'e girmez" diyen kümedir; `zeus-*`
-dışındaki her üyesi aynı zamanda "WAR'a da girmez" demektir. Tek fark `zeus-*`'dır:
-module'e girmez **ama** WAR'da taşınır.
+`zeus-*` çıkarılmış hâli **artı gömülü Tomcat**'tir. O regex zaten "module'e girmez"
+diyen kümedir; `zeus-*` dışındaki her üyesi aynı zamanda "WAR'a da girmez" demektir.
+İki sapma vardır:
+- `zeus-*` — module'e girmez **ama** WAR'da taşınır (tek istisna).
+- **gömülü Tomcat** — module'e GİRER (kapanışta `tomcat-embed-el` vardır) ama WAR'a
+  girmemelidir. Allowlist döneminde "zeus- olmayan her şey atılır" kuralı bunu ÖRTÜLÜ
+  olarak hallediyordu; polarite çevrilince o koruma kalktı ve gömülü Tomcat ince WAR'lara
+  girmeye başladı (ölçüldü: `zeus-sample-soap` WAR'ında 5 Tomcat jar'ı). Bu yüzden sabit
+  kuyruğa açıkça eklendi. Tip parent'ları ayrıca `spring-boot-starter-tomcat`'i `provided`
+  bildirir; iki katman (bağımlılık kapanışı + paketleme) birlikte çalışır ve uygulamanın
+  bu bildirimi tekrarlamasına gerek kalmaz.
 
 Bu, `ojdbc` açısından bugünkü davranışın **korunması** demektir: allowlist onu zaten
 atıyordu, denylist de atmaya devam edecek. Sabit kuyruk olmasaydı ojdbc WAR'a girer ve
@@ -168,7 +188,7 @@ bilinen bir örneği yoktur, ama yeni bir bağımlılık eklenirken akılda tutu
 |---|---|---|
 | `spring-wildfly-arch` WAR'ının jar kümesi | **Değişmemeli** — kapanışı `com.zeus` tarafından tam karşılanıyor (`verify-module-coverage.sh` ✅ ile ölçüldü). Regresyon yok kanıtı. | ✅ 5 jar (`zeus-base`, `zeus-service`, `zeus-ai`, `zeus-database`, `zeus-logger`) — allowlist dönemindeki sayıyla birebir aynı |
 | `spring-wildfly-arch` WildFly deploy + smoke | Yeşil | ✅ WildFly 41.0.0.Final'a gerçek deploy: `WFLYSRV0016: Replaced deployment`, uygulama `/spring-wildfly-arch` context'i altında yanıt verdi (`GET /api/products` → 200), tek seferlik elle yapılmış log denetiminde `ERROR`/`NoClassDefFoundError`/`LinkageError`/`ClassCastException` **sıfır** (scripted test değildir). Fonksiyonel smoke (`http://127.0.0.1:8080` — `localhost` bu makinede Docker'ın IPv6 dinleyicisine düşüyor, `17-module-yenileme-runbook.md`'deki bilinen tuzak): Oracle stored procedure'lerinden 5 gerçek kayıt; `GET /v3/api-docs` → **200**. |
-| SOAP örnek uygulaması WAR'ı | Hiçbir CXF jar'ı içermemeli | ✅ `zeus-sample-soap` WAR'ında `cxf`/`wsdl4j` eşleşmesi **0** (8 jar toplam, hepsi `zeus-*`) |
+| SOAP örnek uygulaması WAR'ı | Hiçbir CXF jar'ı içermemeli; ince WAR'da yalnız `zeus-*` kalmalı | ✅ `zeus-sample-soap` WAR'ında `cxf`/`wsdl4j` eşleşmesi **0**; **3 jar toplam, üçü de `zeus-*`** (`zeus-base`, `zeus-logger`, `zeus-soap`). Ara durumda 8 jar vardı ve bunların 5'i gömülü Tomcat'ti (`tomcat-embed-core/-websocket`, `spring-boot-tomcat`, `spring-boot-starter-tomcat[-runtime]`); sabit kuyruk + `provided` bildirimiyle giderildi. `test-war-packaging-soap.sh` artık "WAR'da SADECE `zeus-*` var" iddiasını assert eder. |
 | ojdbc | WAR'da **0** kopya | ✅ `spring-wildfly-arch` WAR'ında `WEB-INF/lib/ojdbc*` **0** |
 | `test-project--service` | Bugün silinen jar'lar WAR'a girmeli, deploy geçmeli | **doğrulanmadı — bu ortamda erişilemiyor.** Uygulama Windows geliştirme makinesinde (`D:/dvl_ij/...`); bu workspace'te yok. |
 | bff / standalone WAR'ları | Değişmemeli (property boş kalır) | ✅ `zeus-bff-parent`/`zeus-standalone-parent`'ta `<zeus.war.packaging-excludes/>` hâlâ boş; `zeus-sample-bff` 52 jar, `zeus-sample-standalone` 40 jar (fat WAR — dışlama yok) |

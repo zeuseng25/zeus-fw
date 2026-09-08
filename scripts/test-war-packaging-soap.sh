@@ -23,4 +23,23 @@ grep -qE '^spring-core-' <<< "${libs}" && say 1 "spring-core WAR'da YOK" || say 
 grep -qE '^zeus-soap-' <<< "${libs}" && say 0 "zeus-soap WAR'da VAR"     || say 1 "zeus-soap WAR'da VAR"
 grep -qE '^zeus-base-' <<< "${libs}" && say 0 "zeus-base WAR'da VAR"     || say 1 "zeus-base WAR'da VAR"
 
+# GÖMÜLÜ TOMCAT — allowlist'ten denylist'e geçerken bu koruma kaybolmuştu ve WAR'a
+# tomcat-embed-core (146 adet jakarta/servlet/** sınıfı → deployment classloader'ında
+# servlet API'sinin ikinci kopyası → LinkageError) giriyordu. Yukarıdaki üç "yok"
+# iddiası regresyonu YAKALAYAMADI çünkü hiçbiri "WAR'da SADECE zeus-* var" demiyordu.
+grep -qE '^tomcat-embed-' <<< "${libs}" && say 1 "tomcat-embed-* WAR'da YOK"        || say 0 "tomcat-embed-* WAR'da YOK"
+grep -qE '^spring-boot-tomcat-' <<< "${libs}" && say 1 "spring-boot-tomcat WAR'da YOK" || say 0 "spring-boot-tomcat WAR'da YOK"
+grep -qE '^spring-boot-starter-tomcat' <<< "${libs}" && say 1 "spring-boot-starter-tomcat* WAR'da YOK" || say 0 "spring-boot-starter-tomcat* WAR'da YOK"
+
+# KAPSAYICI İDDİA: ince SOAP WAR'ında zeus-* DIŞINDA hiçbir jar olmamalı. Tek tek
+# "şu yok" kontrolleri yalnız bilinen regresyonları yakalar; bu iddia BİLİNMEYENİ de
+# yakalar (final review, Critical 1).
+non_zeus="$(grep -vE '^zeus-[a-z0-9-]+-[0-9]' <<< "${libs}" || true)"
+if [[ -z "${non_zeus//[[:space:]]/}" ]]; then
+    say 0 "WAR'da SADECE zeus-* jar'ları var"
+else
+    say 1 "WAR'da SADECE zeus-* jar'ları var"
+    echo "--- zeus-* olmayan jar'lar:"; echo "${non_zeus}"
+fi
+
 exit ${fail}

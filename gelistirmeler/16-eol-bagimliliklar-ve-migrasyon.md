@@ -123,7 +123,9 @@ SOAP tipinde `descriptor-soap` zaten `webservices` subsystem'ini dışlıyor
 
 1. Sürümü BOM'da yönetiliyor olmalı → bu doküman + `zeus-dependencies`.
 2. Jar'ın kendisi ya paylaşımlı `com.zeus` module'ünde olmalı, ya da uygulamanın
-   `zeus.war.keep` istisnasıyla kendi WAR'ında taşınmalı.
+   kendi WAR'ında taşınmalı. İkincisi için **hiçbir şey yapmak gerekmez**: WAR
+   dışlaması denylist'tir — yalnızca module'ün SAĞLADIĞI jar'lar atılır, module'de
+   olmayan her şey WAR'da taşınır (`19-war-paketleme-module-farkindaligi.md`).
 
 `poi`, `jasperreports`, `openpdf`, `jfreechart`, `shedlock` gibi yeni BOM
 girişleri **otomatik olarak module'e girmez**. Bunlardan paylaşımlı olması
@@ -136,7 +138,11 @@ gerekenler `zeus-wildfly-module` aggregator'üne eklenmeli ve module yeniden
 ```
 
 Yalnızca tek uygulamanın kullandığı bir kütüphane module'e **girmemeli**; o uygulama
-`zeus.war.keep` ile kendi WAR'ında taşır. Detay: `08-wildfly-module-dagitim.md`.
+onu kendi WAR'ında taşır — bağımlılığı eklemek yeterlidir, ek bir property yoktur.
+(Eski `zeus.war.keep` istisnası KALDIRILDI: allowlist döneminde WAR'a giren tek şey
+`zeus-*` olduğu için böyle bir kaçış deliği gerekiyordu; denylist bunu yapısal olarak
+gereksiz kıldı.) Detay: `08-wildfly-module-dagitim.md`,
+`19-war-paketleme-module-farkindaligi.md`.
 
 ## Yeni Kütüphane Ekleme Prosedürü
 

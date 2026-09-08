@@ -69,15 +69,23 @@ taşınır**. Bu yüzden eskiden var olan "app'in kapanışındaki her jar modul
 **kaldırıldı**: bugün onu çalıştırmak, gerçekte deploy'u kırmayacak bir durumu yanlış pozitif
 olarak işaretlerdi.
 
-`zeus-fw/scripts/verify-module-coverage.sh <app-dir>`, deploy'dan önce hâlâ **iki gerçek hatayı**
+`zeus-fw/scripts/verify-module-coverage.sh <app-dir>`, deploy'dan önce hâlâ **üç gerçek hatayı**
 yakalar:
 
-1. **Slot kurulu mu?** — uygulamanın hedeflediği `com.zeus` slot'u (`zeus.module.slot`)
-   sunucuda kurulu değilse, kriptik bir açılış hatası yerine net mesajla (hangi komutla
-   kurulacağı dahil) burada durur.
+1. **Slot kurulu mu?** — uygulamanın hedeflediği `com.zeus` slot'u (`zeus.module.slot`) —
+   SOAP tipinde ayrıca `com.zeus.soap` slot'u (`zeus.soap.module.slot`) — sunucuda kurulu
+   değilse, kriptik bir açılış hatası yerine net mesajla (hangi komutla kurulacağı dahil)
+   burada durur.
 2. **Descriptor üretilmiş mi?** — WAR'da framework'ün ürettiği
    `jboss-deployment-structure.xml` yoksa (`zeus-generated-descriptor` profili devreye
    girmemiştir), WAR WildFly'da `com.zeus`'u hiç göremez; bu da burada erken yakalanır.
+3. **Ters kapsam: sildiğimiz şey sunucuda VAR mı?** — `zeus.war.packaging-excludes`
+   içindeki her artifactId'nin hedeflenen slot'ta (SOAP'ta birleşimde) fiilî bir jar'ı
+   olmalı. Dışlama listesi çalışma ağacındaki kapanıştan üretilir; module yalnız
+   staging'e kurulmuşsa ya da app eski bir immutable slot'u hedefliyorsa, o slot'ta
+   OLMAYAN bir jar WAR'dan atılır → `NoClassDefFoundError`. Sabit kuyruk girdileri
+   (`ojdbc*`, `jakarta.*-api`, `lombok`, jarmode, gömülü tomcat) module'de bilerek
+   yoktur ve bu kontrolün dışındadır.
 
 Self-contained WAR'larda (`zeus.war.packaging-excludes` boş — standalone/BFF tipi) denetim
 tamamen atlanır: com.zeus module'ü zaten kullanılmaz. Her uygulamanın **`deploy.sh`'ı bu

@@ -11,8 +11,9 @@
 # Kullanım:
 #   ./scripts/generate-war-excludes.sh --print standard   # regex'i stdout'a bas
 #   ./scripts/generate-war-excludes.sh --print soap       # com.zeus ∪ com.zeus.soap
+#   ./scripts/generate-war-excludes.sh --print fixed-tail # sabit kuyruk (module dışı küme)
 #   ./scripts/generate-war-excludes.sh --write            # iki parent POM'u güncelle
-#   ./scripts/generate-war-excludes.sh --check            # POM'lar güncel mi (CI)
+#   ./scripts/generate-war-excludes.sh --check            # POM'lar güncel mi (CI, SALT-OKUNUR)
 #
 set -euo pipefail
 
@@ -26,13 +27,22 @@ MVN="${MVN:-mvn}"
 MIN_ARTIFACT_IDS=20
 
 # Module'de OLMAYAN ama WAR'a da GİRMEMESİ gereken küme.
-# = install-zeus-module.sh'ın EXCLUDE_REGEX'i EKSİ zeus-* :
 #   ojdbc/orai18n/ucp → WildFly'ın kendi com.oracle.ojdbc module'ünden gelir; WAR'daki
 #     ikinci kopya JNDI Connection'ı ile tip ayrışması yaratır (ClassCastException).
 #   jakarta.*-api     → WildFly server module'lerinden gelir; kopyası LinkageError üretir.
 #   lombok/jarmode    → runtime'da işlevsiz, WAR'ı şişirir.
+#   GÖMÜLÜ TOMCAT (tomcat-embed-*, spring-boot-tomcat, spring-boot-starter-tomcat[-runtime])
+#     → konteyner WildFly/Undertow'dur; gömülü Tomcat WAR'a hiç girmemeli. Bu girdiler
+#     ALLOWLIST döneminde "zeus- olmayan her şey atılır" kuralıyla ÖRTÜLÜ olarak
+#     atılıyordu; polarite denylist'e çevrilince o koruma kalktı ve gömülü Tomcat ince
+#     WAR'lara girmeye başladı. tomcat-embed-core, 146 adet `jakarta/servlet/**` sınıfı
+#     taşır → deployment classloader'ında servlet API'sinin İKİNCİ kopyası → tam olarak
+#     `jakarta.*-api` girdisinin önlemek için var olduğu LinkageError sınıfı, kural jar'ın
+#     İÇİNDEKİNE değil artifactId YAZILIŞINA baktığı için yanından dolaşarak.
+#     packagingExcludes yalnız WAR paketlemesini etkiler; `spring-boot:run` / `local`
+#     profil (gömülü Tomcat ile lokal çalıştırma) bundan etkilenmez.
 # zeus-* BU LİSTEDE YOKTUR: module'e girmez AMA WAR'da taşınır (tek istisna).
-FIXED_TAIL='ojdbc[0-9]+|orai18n|ucp[0-9]+|jakarta\.[a-z.]+-api|lombok|spring-boot-jarmode-[a-z]+'
+FIXED_TAIL='ojdbc[0-9]+|orai18n|ucp[0-9]+|jakarta\.[a-z.]+-api|lombok|spring-boot-jarmode-[a-z]+|tomcat-embed-[a-z-]+|spring-boot-tomcat|spring-boot-starter-tomcat(-runtime)?'
 
 # Bir sözleşme modülünün runtime kapanışındaki artifactId'leri basar.
 # install-zeus-module.sh module'ü ÜRETİRKEN aynı kaynağı (dependency, includeScope=runtime)
@@ -109,18 +119,35 @@ list_soap() {
 MARK_BEGIN='ZEUS-WAR-EXCLUDES:BEGIN'
 MARK_END='ZEUS-WAR-EXCLUDES:END'
 
-# POM'daki marker bloğunun İÇERİĞİNİ (BEGIN/END yorum satırları arasındaki property
-# satırını) yeni regex ile değiştirir. BEGIN/END yorum satırlarının kendisine dokunmaz.
-write_pom() {  # $1=pom yolu  $2=regex
-    local pom="$1" regex="$2"
+# KAYNAK POM'u okur, marker bloğunun İÇİNDEKİ property satırını yeni regex ile değiştirir
+# ve sonucu HEDEF dosyaya yazar. KAYNAĞA DOKUNMAZ — bu ayrım `--check`'in gerçekten
+# salt-okunur olmasını sağlar (eskiden `--check` POM'ları yazıp EXIT trap'inde geri
+# yüklüyordu; SIGKILL / CI job timeout trap'i çalıştırmaz ve çalışma ağacında YARIM
+# YAZILMIŞ bir parent POM bırakabilirdi — final review, Important 2).
+#
+# MARKER YOKSA HATA (final review, Important 3): eskiden 0 dönüp stdout'a not düşüyordu,
+# `--check` ise o stdout'u /dev/null'a yolluyordu → marker bir merge/elle düzenlemeyle
+# kaybolduğunda `--check` "✅ uyumlu" diyordu. Tüm gerekçesi "drift yapısal olarak
+# imkânsız" olan bir mekanizmada drift detektörünün kendi hata biçimi SESSİZ OLAMAZ.
+# (Dosyanın hiç olmaması atlama olarak kalır — opsiyonel tip parent'ı senaryosu.)
+render_pom() {  # $1=kaynak pom  $2=regex  $3=hedef dosya
+    local pom="$1" regex="$2" out="$3"
     [[ -f "${pom}" ]] || { echo ">> atlandı (yok): ${pom}"; return 0; }
-    grep -q "${MARK_BEGIN}" "${pom}" || { echo ">> atlandı (marker yok): ${pom}"; return 0; }
-    MARK_BEGIN="${MARK_BEGIN}" MARK_END="${MARK_END}" REGEX="${regex}" python3 - "${pom}" <<'PY'
+    if ! grep -q "${MARK_BEGIN}" "${pom}"; then
+        echo "HATA: '${MARK_BEGIN}' marker'ı bulunamadı: ${pom}" >&2
+        echo "      Üretilen blok bir merge / elle düzenleme ile kaybolmuş olabilir." >&2
+        echo "      Marker olmadan liste ÜRETİLEMEZ ve POM sessizce eski listede donar." >&2
+        echo "      Çözüm: POM'a ZEUS-WAR-EXCLUDES:BEGIN/END yorum çiftini geri koyun." >&2
+        return 1
+    fi
+    MARK_BEGIN="${MARK_BEGIN}" MARK_END="${MARK_END}" REGEX="${regex}" OUT="${out}" \
+        python3 - "${pom}" <<'PY'
 import io,os,sys
 pom = sys.argv[1]
 rx = os.environ['REGEX']
 mb = os.environ['MARK_BEGIN']
 me = os.environ['MARK_END']
+out = os.environ['OUT']
 s = io.open(pom, encoding='utf-8').read()
 
 bpos = s.find(mb)
@@ -141,62 +168,67 @@ indent = ' ' * 8
 new_middle = indent + "<zeus.war.packaging-excludes>" + rx + "</zeus.war.packaging-excludes>\n"
 
 s2 = s[:begin_line_end] + new_middle + s[end_line_start:end_line_end] + s[end_line_end:]
-io.open(pom, 'w', encoding='utf-8').write(s2)
+io.open(out, 'w', encoding='utf-8').write(s2)
 PY
-    echo ">> güncellendi: ${pom}"
 }
+
+# Render edilmiş dosyayı hedef POM'un YERİNE ATOMİK koyar: önce aynı dizinde geçici bir
+# ada kopyalanır, sonra rename(2) ile yerine geçer. Böylece POM hiçbir an YARIM yazılmış
+# gözlenmez — aynı checkout'ta paralel koşan bir `mvn` bozuk POM okuyamaz.
+install_pom() {  # $1=render edilmiş dosya  $2=hedef pom
+    [[ -f "$1" ]] || return 0
+    cp "$1" "$2.tmp"
+    mv -f "$2.tmp" "$2"
+    echo ">> güncellendi: $2"
+}
+
+STD_POM="${FW_ROOT}/zeus-parent/pom.xml"
+SOAP_POM="${FW_ROOT}/zeus-soap-parent/pom.xml"
 
 case "${1:---write}" in
     --print)
         case "${2:-standard}" in
-            standard) list_standard ;;
-            soap)     list_soap ;;
+            standard)   list_standard ;;
+            soap)       list_soap ;;
+            # Sabit kuyruğun TEK KAYNAĞI burasıdır; verify-module-coverage.sh ters yönlü
+            # kontrolde bu kalıpları hariç tutmak için bu modu çağırır (kopyalamaz).
+            fixed-tail) printf '%s\n' "${FIXED_TAIL}" ;;
             *) echo "bilinmeyen liste: ${2}" >&2; exit 2 ;;
         esac
         ;;
     --write)
-        # NOT: regex'i ÖNCE bir DEĞİŞKENE ATA, sonra write_pom'a argüman olarak geç.
-        # `write_pom "$pom" "$(list_standard)"` gibi doğrudan argüman-içi komut ikamesi
+        # NOT: regex'i ÖNCE bir DEĞİŞKENE ATA, sonra render_pom'a argüman olarak geç.
+        # `render_pom "$pom" "$(list_standard)"` gibi doğrudan argüman-içi komut ikamesi
         # KULLANMAYIN: `set -e` başarısız bir komut ikamesini yalnız ATAMA'nın SAĞ tarafında
         # yakalar; bir komuta ARGÜMAN olarak geçildiğinde ikame başarısız olsa bile üstteki
         # komut BOŞ argümanla çalışmaya devam eder ve script sessizce ilerler (fix round 1,
         # Important 1 — ampirik doğrulandı, bkz. task-2-report.md fix bölümü).
         regex_std="$(list_standard)" || { echo "HATA: standard listesi üretilemedi — --write İPTAL edildi." >&2; exit 1; }
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --write İPTAL edildi." >&2; exit 1; }
-        write_pom "${FW_ROOT}/zeus-parent/pom.xml"      "${regex_std}"
-        write_pom "${FW_ROOT}/zeus-soap-parent/pom.xml" "${regex_soap}"
+        tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
+        # ÖNCE İKİSİNİ DE tmp'ye render et, SONRA yerine koy: aradaki bir hata (ör. marker
+        # kaybı) hiçbir POM'a dokunmadan durur. Eskiden iki yazma arasındaki hata
+        # zeus-parent'ı YENİ, zeus-soap-parent'ı ESKİ listede bırakıyordu (final review,
+        # Important 2 — dosyalar arası atomiklik).
+        render_pom "${STD_POM}"  "${regex_std}"  "${tmp}/std.pom"  || exit 1
+        render_pom "${SOAP_POM}" "${regex_soap}" "${tmp}/soap.pom" || exit 1
+        install_pom "${tmp}/std.pom"  "${STD_POM}"
+        install_pom "${tmp}/soap.pom" "${SOAP_POM}"
         ;;
     --check)
-        tmp="$(mktemp -d)"
-        std_pom="${FW_ROOT}/zeus-parent/pom.xml"
-        soap_pom="${FW_ROOT}/zeus-soap-parent/pom.xml"
-        cp "${std_pom}" "${tmp}/std.bak"
-        cp "${soap_pom}" "${tmp}/soap.bak" 2>/dev/null || true
-        # POM'ları HER ÇIKIŞ YOLUNDA (başarı / hata / SIGINT) eski hâline döndür — EXIT
-        # trap'i içinde, iki write_pom çağrısı arasında bir hata/kesinti olsa BİLE çalışır
-        # (fix round 1, Important 2 — eskiden geri yükleme düz kod olarak `write_pom`'lardan
-        # SONRA duruyordu; aradaki herhangi bir sıfır-olmayan çıkış POM'u değiştirilmiş bırakırdı).
-        # NOT: burada da `[[ ... ]] && cmd` KULLANMAYIN — trap içindeyken bile `set -e`
-        # geri yüklemeyi yarım bırakabilir; `if` ile açıkça dallandırıyoruz.
-        restore_check_poms() {
-            if [[ -f "${tmp}/std.bak" ]]; then
-                cp "${tmp}/std.bak" "${std_pom}"
-            fi
-            if [[ -f "${tmp}/soap.bak" ]]; then
-                cp "${tmp}/soap.bak" "${soap_pom}"
-            fi
-            rm -rf "${tmp}"
-        }
-        trap restore_check_poms EXIT
-
+        # SALT-OKUNUR: render tmp'ye yapılır, POM'lara HİÇ dokunulmaz (ne yazma, ne geri
+        # yükleme). Bu yüzden EXIT trap'i yalnız tmp dizinini siler.
+        tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
         regex_std="$(list_standard)" || { echo "HATA: standard listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
-        write_pom "${std_pom}"  "${regex_std}"  >/dev/null
-        write_pom "${soap_pom}" "${regex_soap}" >/dev/null
+        render_pom "${STD_POM}"  "${regex_std}"  "${tmp}/std.pom"  >/dev/null || exit 1
+        render_pom "${SOAP_POM}" "${regex_soap}" "${tmp}/soap.pom" >/dev/null || exit 1
         rc=0
-        diff -q "${tmp}/std.bak" "${std_pom}" >/dev/null || rc=1
-        if [[ -f "${tmp}/soap.bak" ]]; then
-            diff -q "${tmp}/soap.bak" "${soap_pom}" >/dev/null || rc=1
+        if [[ -f "${tmp}/std.pom" ]]; then
+            diff -q "${STD_POM}" "${tmp}/std.pom" >/dev/null || rc=1
+        fi
+        if [[ -f "${tmp}/soap.pom" ]]; then
+            diff -q "${SOAP_POM}" "${tmp}/soap.pom" >/dev/null || rc=1
         fi
         if [[ "${rc}" != 0 ]]; then
             echo "❌ Üretilmiş WAR dışlama listesi GÜNCEL DEĞİL. Çalıştırın: ./scripts/generate-war-excludes.sh --write" >&2
@@ -205,5 +237,5 @@ case "${1:---write}" in
         fi
         exit "${rc}"
         ;;
-    *) echo "kullanım: $0 [--print standard|soap] [--write] [--check]" >&2; exit 2 ;;
+    *) echo "kullanım: $0 [--print standard|soap|fixed-tail] [--write] [--check]" >&2; exit 2 ;;
 esac

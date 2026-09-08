@@ -2,13 +2,16 @@
 #
 # Deploy ön-kontrolü (PLATFORM scripti).
 #
-# İKİ ŞEYİ denetler:
-#   1) Uygulamanın hedeflediği com.zeus slot'u sunucuda KURULU mu?
+# ÜÇ ŞEYİ denetler:
+#   1) Uygulamanın hedeflediği com.zeus (SOAP tipinde ayrıca com.zeus.soap) slot'u
+#      sunucuda KURULU mu?
 #   2) WAR'da framework'ün ÜRETTİĞİ jboss-deployment-structure.xml var mı?
+#   3) TERS KAPSAM: WAR'dan SİLİNEN her artifactId, hedeflenen slot'ta GERÇEKTEN VAR mı?
 #
-# NOT: "bağımlılık module'de var mı?" kontrolü KALDIRILDI. Denylist paketlemesinden sonra
-# module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/19-war-paketleme-module-
-# farkindaligi.md); onu eksik saymak yanlış pozitiftir.
+# NOT: "uygulamanın bağımlılığı module'de var mı?" kontrolü KALDIRILDI. Denylist
+# paketlemesinden sonra module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/
+# 19-war-paketleme-module-farkindaligi.md); onu eksik saymak yanlış pozitiftir. Bunun
+# TERSİ ise kabul edilmiş bir taviz DEĞİLDİR — bkz. (3) numaralı kontrolün başlığı.
 #
 # Kullanım:
 #   ./scripts/verify-module-coverage.sh [app-dizini]   (varsayılan: cwd)
@@ -16,6 +19,8 @@
 #
 set -euo pipefail
 
+# FW_ROOT, APP_DIR'e cd EDİLMEDEN ÖNCE çözülür (sabit kuyruğu üreticiden okumak için).
+FW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 APP_DIR="${1:-$(pwd)}"
 
@@ -43,6 +48,17 @@ fi
 SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.module.slot -DforceStdout 2>/dev/null || true)"
 [[ -z "${SLOT}" || "${SLOT}" == "null"* ]] && SLOT="main"
 MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
+
+# SOAP tipi uygulama mı? (zeus-soap-parent, zeus.soap.module.slot property'sini tanımlar)
+# Öyleyse hem slot-kurulu-mu hem ters kapsam kontrolü com.zeus ∪ com.zeus.soap birleşimine
+# karşı yapılır. Bu çözüm bir ara sürümde eksik-bağımlılık dalıyla BİRLİKTE silinmişti;
+# oysa spec yalnız o dalın kaldırılmasını söylüyordu (final review, Important 5). Kurulu
+# olmayan bir com.zeus.soap slot'unu hedefleyen SOAP uygulaması, guard'ın önlemek için var
+# olduğu kriptik deploy hatasını alıyordu.
+SOAP_SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.soap.module.slot -DforceStdout 2>/dev/null || true)"
+[[ "${SOAP_SLOT}" == "null"* ]] && SOAP_SLOT=""
+SOAP_MODULE_DIR=""
+[[ -n "${SOAP_SLOT// /}" ]] && SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
 
 # Üretilen-descriptor kontrolü: WAR build edilmişse içinde framework'ün ürettiği
 # jboss-deployment-structure.xml olmalı. Yoksa zeus-generated-descriptor profili devreye
@@ -72,4 +88,107 @@ if [[ ! -f "${MODULE_DIR}/module.xml" ]]; then
     exit 2
 fi
 
-echo "✅ Slot kurulu ve üretilmiş descriptor yerinde."
+if [[ -n "${SOAP_MODULE_DIR}" && ! -f "${SOAP_MODULE_DIR}/module.xml" ]]; then
+    echo "HATA: uygulamanın hedeflediği com.zeus.soap:${SOAP_SLOT} slot'u bu sunucuda kurulu değil: ${SOAP_MODULE_DIR}" >&2
+    if [[ "${SOAP_SLOT}" == "main" ]]; then
+        echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )" >&2
+    else
+        echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap --slot ${SOAP_SLOT} )" >&2
+        echo "      (yeni slot kurulumu WildFly restart'ı gerektirmez)" >&2
+    fi
+    exit 2
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# TERS KAPSAM KONTROLÜ: "sildiğimiz şey sunucuda VAR olmalı"
+#
+# Üretilen dışlama listesi HER ZAMAN çalışma ağacındaki zeus-wildfly-module kapanışından
+# doğar; uygulamanın gerçekte bağlandığı zeus.module.slot ile arasında yapısal bir bağ
+# YOKTUR. İki ulaşılabilir sapma senaryosu:
+#   (a) zeus-wildfly-module'e bir bağımlılık eklenip install-zeus-module.sh yalnız
+#       STAGING'e çalıştırılır → ağaçtaki listeler o jar'ı artık TÜM uygulamalar için
+#       dışlar, com.zeus:main'i yenilenmemiş prod sunucusuna deploy edenler dahil;
+#   (b) versiyonlu slotlarda zeus.module.slot eski bir IMMUTABLE slot'u gösterirken
+#       listeler yeni kapanıştan üretilir.
+# Sonuç aynı: hedeflenen slot'ta OLMAYAN bir jar WAR'dan atılır → NoClassDefFoundError.
+# Spec §4'ün kabul ettiği taviz bunun TERSİYDİ (module'de olmayanın WAR'a sessizce
+# konması, ki zararsızdır); bu yön kabul edilmiş bir taviz değildir (final review,
+# Important 4).
+#
+# KRİTİK İNCELİK: sabit kuyruk girdileri (ojdbc/orai18n/ucp, jakarta.*-api, lombok,
+# jarmode, gömülü tomcat) module'de BİLEREK yoktur — onlar WildFly'ın kendi
+# module'lerinden gelir ya da runtime'da hiç gerekmez. Bu kontrolün dışında tutulmazlarsa
+# guard HER ZAMAN kırmızı olur. Kuyruğun TEK KAYNAĞI üreticidir; buraya kopyalanmaz.
+# ─────────────────────────────────────────────────────────────────────────────────────
+FIXED_TAIL="$("${FW_ROOT}/scripts/generate-war-excludes.sh" --print fixed-tail)"
+
+if ! PKG_EXCLUDES="${PKG_EXCLUDES}" FIXED_TAIL="${FIXED_TAIL}" \
+     MODULE_DIR="${MODULE_DIR}" SOAP_MODULE_DIR="${SOAP_MODULE_DIR}" \
+     SLOT="${SLOT}" SOAP_SLOT="${SOAP_SLOT}" python3 - <<'PY'
+import os, re, sys
+
+rx = os.environ['PKG_EXCLUDES'].strip()
+tail = os.environ['FIXED_TAIL'].strip()
+
+# Üreticinin bastığı biçim: %regex[WEB-INF/lib/(a|b|c)-[0-9][^/]*\.jar]
+m = re.match(r'^%regex\[WEB-INF/lib/\((.*)\)-\[0-9\]\[\^/\]\*\\\.jar\]$', rx)
+if not m:
+    # Elle yazılmış / beklenmedik biçim: denetleyecek yapılandırılmış bilgi yok.
+    print(">> UYARI: zeus.war.packaging-excludes üreticinin bastığı biçimde değil —"
+          " ters kapsam kontrolü ATLANDI.")
+    sys.exit(0)
+
+tokens = m.group(1).split('|')
+
+# Sabit kuyruk iki yoldan elenir:
+#  1) token, kuyruğun bir alternatifiyle BİREBİR aynıysa (kuyruğun kendisi listenin
+#     sonuna olduğu gibi eklenir: 'ojdbc[0-9]+', 'spring-boot-starter-tomcat(-runtime)?'…)
+#  2) token'ın düz artifactId hâli kuyruk KALIBINA uyuyorsa (kapanıştan gelen gerçek
+#     artifactId'ler: 'ojdbc17', 'tomcat-embed-el', 'jakarta.annotation-api'…)
+tail_alts = set(tail.split('|'))
+tail_re = re.compile('^(?:' + tail + ')$')
+
+def plain(tok):
+    return tok.replace('\\.', '.')
+
+dirs = [d for d in (os.environ['MODULE_DIR'], os.environ.get('SOAP_MODULE_DIR', '')) if d and os.path.isdir(d)]
+jars = []
+for d in dirs:
+    jars += [f for f in os.listdir(d) if f.endswith('.jar')]
+
+missing = []
+checked = 0
+for tok in tokens:
+    if not tok or tok in tail_alts:
+        continue
+    aid = plain(tok)
+    if tail_re.match(aid):
+        continue
+    checked += 1
+    pat = re.compile('^' + re.escape(aid) + r'-[0-9][^/]*\.jar$')
+    if not any(pat.match(j) for j in jars):
+        missing.append(aid)
+
+slots = 'com.zeus:' + os.environ['SLOT']
+if os.environ.get('SOAP_SLOT'):
+    slots += ' ∪ com.zeus.soap:' + os.environ['SOAP_SLOT']
+
+if missing:
+    sys.stderr.write("\n❌ TERS KAPSAM HATASI: WAR'dan SİLİNEN aşağıdaki artifactId'lerin\n")
+    sys.stderr.write("   hedeflenen slot'ta (%s) karşılığı YOK\n" % slots)
+    sys.stderr.write("   (WildFly'da NoClassDefFoundError'a yol açar):\n")
+    for a in missing:
+        sys.stderr.write("     - %s\n" % a)
+    sys.stderr.write("\n   Olası neden: dışlama listesi module'den DAHA YENİ — module bu sunucuda\n")
+    sys.stderr.write("   henüz yenilenmedi ya da app eski bir immutable slot'u hedefliyor.\n")
+    sys.stderr.write("   Çözüm: ( cd zeus-fw && ./scripts/install-zeus-module.sh )  — veya\n")
+    sys.stderr.write("   app'in zeus.module.slot değerini listeyi üreten release ile hizalayın.\n")
+    sys.exit(1)
+
+print(">> Ters kapsam: %d dışlanan artifactId'nin hepsi %s slot'unda mevcut." % (checked, slots))
+PY
+then
+    exit 1
+fi
+
+echo "✅ Slot kurulu, üretilmiş descriptor yerinde, dışlanan jar'lar slot'ta mevcut."
