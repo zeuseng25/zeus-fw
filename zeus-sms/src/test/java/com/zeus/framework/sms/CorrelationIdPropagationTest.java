@@ -66,4 +66,21 @@ class CorrelationIdPropagationTest {
         }
         assertThat(GORULEN.get()).isEqualTo("abc123");
     }
+
+    @Test
+    void mdcBoşkenSoapHeaderEklenmez() {
+        // MDC'yi temizle — hiçbir correlation ID olmamalı
+        MDC.clear();
+        // Önceki testten kalan değeri sıfırla (testler aynı statik AtomicReference'ı paylaşıyor)
+        GORULEN.set(null);
+        try {
+            ZeusSmsProperties p = new ZeusSmsProperties();
+            p.setEndpoint(address);
+            new ZeusSmsClient(p).send("905551112233", "merhaba");
+        } finally {
+            MDC.clear();
+        }
+        // Hiçbir header eklenmediğini doğrula
+        assertThat(GORULEN.get()).isNull();
+    }
 }
