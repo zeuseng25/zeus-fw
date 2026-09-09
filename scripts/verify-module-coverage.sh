@@ -49,7 +49,9 @@ SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.module.slo
 [[ -z "${SLOT}" || "${SLOT}" == "null"* ]] && SLOT="main"
 MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
 
-# SOAP tipi uygulama mı? (zeus-soap-parent, zeus.soap.module.slot property'sini tanımlar)
+# SOAP tipi uygulama mı? (zeus.soap.module.slot property'si zeus-parent'ta tanımlı — Task 1'de
+# zeus-soap-parent'tan taşındı; standart tip uygulamalar da com.zeus.soap'ı opt-in edebilsin
+# diye. Bkz. gelistirmeler/20-zeus-sms.md)
 # Öyleyse hem slot-kurulu-mu hem ters kapsam kontrolü com.zeus ∪ com.zeus.soap birleşimine
 # karşı yapılır. Bu çözüm bir ara sürümde eksik-bağımlılık dalıyla BİRLİKTE silinmişti;
 # oysa spec yalnız o dalın kaldırılmasını söylüyordu (final review, Important 5). Kurulu

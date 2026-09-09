@@ -46,6 +46,11 @@ Sonra tüketen uygulamada:
 değişmişse bunu **yakalamaz**. BOM'da `cxf.version` değiştiyse soap module'ünü elle
 yenile, ya da denetimi bir SOAP tipi uygulamada çalıştır.
 
+> **`com.zeus` versiyonlu bir slot'a kurulduysa**, `com.zeus.soap` da `--base-slot <o slot>`
+> ile kurulmalıdır; aksi halde soap module'ü `com.zeus:main`'e bakar ve deployment iki farklı
+> slot görür. Mekanizma mevcuttur (`install-zeus-module.sh` `--base-slot`), atlanması
+> operasyonel bir hatadır. Detay: `20-zeus-sms.md`.
+
 ### Hedef sunucu seçimi
 
 `WILDFLY_HOME` hangi sunucuya kurulacağını belirler — staging/prod ayrımı buradan yapılır:
