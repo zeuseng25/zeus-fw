@@ -29,6 +29,9 @@ public class ZeusSmsClient {
             factory.setUsername(props.getUsername());
             factory.setPassword(props.getPassword());
         }
+        // MDC'deki correlation ID'yi giden zarfa basar (bkz. gelistirmeler/18-correlation-id.md).
+        // create() ÖNCESİ eklenmeli: factory'nin bu listesi proxy oluşturulurken okunur.
+        factory.getOutInterceptors().add(new CorrelationIdClientInterceptor());
         this.proxy = (SmsService) factory.create();
 
         Client client = ClientProxy.getClient(this.proxy);
