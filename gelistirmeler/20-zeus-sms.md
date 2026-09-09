@@ -123,8 +123,9 @@ uygulama dardır" kuralının gereği: `zeus-sms` jar'ını gören ama SMS kulla
 bean kurmaz, endpoint aramaz, hata vermez.
 
 Çağrı hataları `ZeusSmsException`'a sarılır; `zeus-base`'in `GlobalExceptionHandler`'ı
-ProblemDetail'e çevirir. Timeout'lar property ile yönetilir — varsayılansız bırakılmaz,
-çünkü CXF'in varsayılanı sonsuz beklemedir.
+ProblemDetail'e çevirir. Timeout'lar property ile yönetilir — varsayılansız bırakılmaz:
+CXF'in varsayılanları 30s bağlantı / 60s yanıttır ve bir istek thread'ini bir dakika
+tutabilecek bu değerler bir SMS çağrısı için fazlasıyla uzundur.
 
 ## Test ve doğrulama
 

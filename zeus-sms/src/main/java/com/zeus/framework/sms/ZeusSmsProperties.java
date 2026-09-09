@@ -15,10 +15,14 @@ public class ZeusSmsProperties {
     /** SOAP endpoint URL'i. Boşsa SMS istemcisi hiç kurulmaz. */
     private String endpoint;
 
-    /** Bağlantı zaman aşımı. CXF'in varsayılanı SONSUZ beklemedir; framework bunu miras almaz. */
+    /**
+     * Bağlantı zaman aşımı. CXF'in varsayılanı 30s'dir; bir istek thread'ini bu kadar
+     * tutmak SMS çağrısı için fazla uzun olduğundan framework daha kısa bir değeri miras
+     * bırakmaz.
+     */
     private Duration connectTimeout = Duration.ofSeconds(5);
 
-    /** Yanıt bekleme zaman aşımı. Aynı gerekçe. */
+    /** Yanıt bekleme zaman aşımı. CXF'in varsayılanı 60s'dir; aynı gerekçeyle kısaltılır. */
     private Duration receiveTimeout = Duration.ofSeconds(15);
 
     private String username;

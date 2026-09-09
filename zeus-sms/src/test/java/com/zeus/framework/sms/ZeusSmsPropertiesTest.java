@@ -9,7 +9,8 @@ class ZeusSmsPropertiesTest {
 
     @Test
     void varsayilanTimeoutlarSonsuzDegildir() {
-        // CXF'in varsayılanı sonsuz beklemedir; framework bunu ASLA miras almamalı.
+        // CXF'in varsayılanları 30s bağlantı / 60s yanıttır; framework bir istek thread'ini
+        // bu kadar uzun tutmamak için daha kısa değerleri miras bırakır.
         ZeusSmsProperties p = new ZeusSmsProperties();
         assertThat(p.getConnectTimeout()).isEqualTo(Duration.ofSeconds(5));
         assertThat(p.getReceiveTimeout()).isEqualTo(Duration.ofSeconds(15));

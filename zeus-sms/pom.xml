@@ -64,25 +64,4 @@
             <scope>test</scope>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <!-- surefire varsayılan olarak *IT.java'yı taramaz (o desen failsafe'in
-                 "integration-test" fazına ait); bu modülde failsafe bağlı DEĞİL. ZeusSmsClientIT
-                 gerçek bir HTTP turu yapsa da hızlıdır (yerel Jetty), bu yüzden ayrı bir
-                 integration-test fazı yerine standart `test` fazında koşturuluyor. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <configuration>
-                    <includes>
-                        <include>**/*Test.java</include>
-                        <include>**/*Tests.java</include>
-                        <include>**/*TestCase.java</include>
-                        <include>**/*IT.java</include>
-                    </includes>
-                </configuration>
-            </plugin>
-        </plugins>
-    </build>
 </project>

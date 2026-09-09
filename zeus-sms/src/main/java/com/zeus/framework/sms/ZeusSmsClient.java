@@ -11,8 +11,9 @@ import org.slf4j.LoggerFactory;
 /**
  * SMS SOAP istemcisi. Proxy bir kez kurulur ve yeniden kullanılır (CXF proxy'si thread-safe'dir).
  *
- * <p>Zaman aşımları AÇIKÇA verilir: CXF'in varsayılanı sonsuz beklemedir ve bir SMS servisinin
- * yanıt vermemesi, çağıran isteğin süresiz asılı kalması anlamına gelirdi.
+ * <p>Zaman aşımları AÇIKÇA verilir: CXF'in varsayılanları 30s bağlantı / 60s yanıttır; bir
+ * istek işleyen thread'i bir dakika tutabilecek bu değerler bir SMS çağrısı için fazlasıyla
+ * uzundur, bu yüzden açıkça kısaltılır.
  */
 public class ZeusSmsClient {
 
