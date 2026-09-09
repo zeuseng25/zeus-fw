@@ -2,6 +2,7 @@ package com.zeus.framework.sms;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.zeus.framework.correlation.CorrelationId;
 import jakarta.jws.WebService;
 import java.util.concurrent.atomic.AtomicReference;
 import org.apache.cxf.endpoint.Server;
@@ -12,7 +13,13 @@ import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 
 /**
- * MDC'deki correlation ID gerçekten SOAP header'ına giriyor mu — sunucu tarafında okunarak.
+ * Aktif correlation ID gerçekten giden çağrının HTTP protokol header'ına giriyor mu —
+ * SUNUCU tarafında, {@code zeus-soap}'ın {@code Inbound} interceptor'ı ile AYNI yoldan
+ * okunarak (bkz. {@link HeaderYakalayici}).
+ *
+ * <p>Taşıyıcı bilinçli olarak SOAP zarfı DEĞİL, {@code X-Correlation-Id} protokol
+ * header'ıdır: framework'ün kendi SOAP sunucuları kimliği oradan okur, zarftan değil
+ * (final review, Important 3).
  *
  * <p>Repo konvansiyonuna göre {@code *Test} adlandırılır (bkz. {@code ZeusSmsClientTest}) ve
  * standart Surefire taramasıyla koşar; {@code *IT} kullanılmaz çünkü failsafe yapılandırılmamış
@@ -42,7 +49,7 @@ class CorrelationIdPropagationTest {
         f.setAddress(address);
         f.setServiceBean(new StubSmsService());
         server = f.create();
-        // Gelen zarftaki header'ı yakalayan sunucu-tarafı interceptor.
+        // Gelen isteğin protokol header'larını yakalayan sunucu-tarafı interceptor.
         server.getEndpoint().getInInterceptors().add(new HeaderYakalayici(GORULEN));
     }
 
@@ -55,20 +62,21 @@ class CorrelationIdPropagationTest {
     }
 
     @Test
-    void mdcdekiKimlikSoapHeaderInaGirer() {
-        MDC.put("correlationId", "abc123");
+    void aktifKimlikProtokolHeaderInaGirer() {
+        // Anahtar ELLE yazılmaz: CorrelationId sabitleri tek kaynaktır.
+        CorrelationId.set("abc123");
         try {
             ZeusSmsProperties p = new ZeusSmsProperties();
             p.setEndpoint(address);
             new ZeusSmsClient(p).send("905551112233", "merhaba");
         } finally {
-            MDC.remove("correlationId");
+            CorrelationId.clear();
         }
         assertThat(GORULEN.get()).isEqualTo("abc123");
     }
 
     @Test
-    void mdcBoşkenSoapHeaderEklenmez() {
+    void kimlikYokkenHeaderEklenmez() {
         // MDC'yi temizle — hiçbir correlation ID olmamalı
         MDC.clear();
         // Önceki testten kalan değeri sıfırla (testler aynı statik AtomicReference'ı paylaşıyor)

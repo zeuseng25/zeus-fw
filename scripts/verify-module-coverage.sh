@@ -2,16 +2,18 @@
 #
 # Deploy ön-kontrolü (PLATFORM scripti).
 #
-# ÜÇ ŞEYİ denetler:
-#   1) Uygulamanın hedeflediği com.zeus (SOAP tipinde ayrıca com.zeus.soap) slot'u
-#      sunucuda KURULU mu?
+# DÖRT ŞEYİ denetler:
+#   1) Uygulamanın hedeflediği com.zeus (com.zeus.soap'ı OPT-IN EDEN uygulamalarda ayrıca
+#      com.zeus.soap) slot'u sunucuda KURULU mu?
 #   2) WAR'da framework'ün ÜRETTİĞİ jboss-deployment-structure.xml var mı?
-#   3) TERS KAPSAM: WAR'dan SİLİNEN her artifactId, hedeflenen slot'ta GERÇEKTEN VAR mı?
+#   3) İKİ-PROPERTY TUTARLILIĞI: com.zeus.soap opt-in'i İKİ YÖNLÜ tutarlı mı?
+#      (descriptor import ediyor ⇔ dışlama listesi CXF'i atıyor)
+#   4) TERS KAPSAM: WAR'dan SİLİNEN her artifactId, hedeflenen slot'ta GERÇEKTEN VAR mı?
 #
 # NOT: "uygulamanın bağımlılığı module'de var mı?" kontrolü KALDIRILDI. Denylist
 # paketlemesinden sonra module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/
 # 19-war-paketleme-module-farkindaligi.md); onu eksik saymak yanlış pozitiftir. Bunun
-# TERSİ ise kabul edilmiş bir taviz DEĞİLDİR — bkz. (3) numaralı kontrolün başlığı.
+# TERSİ ise kabul edilmiş bir taviz DEĞİLDİR — bkz. (4) numaralı kontrolün başlığı.
 #
 # Kullanım:
 #   ./scripts/verify-module-coverage.sh [app-dizini]   (varsayılan: cwd)
@@ -27,6 +29,35 @@ APP_DIR="${1:-$(pwd)}"
 cd "${APP_DIR}"
 MVN="mvn"
 
+MVN_ERR="$(mktemp)"
+trap 'rm -f "${MVN_ERR}"' EXIT
+
+# Bir Maven property'sini çözer. ÇIKIŞ KODU KORUNUR — çağıran ayırt etmek ZORUNDADIR:
+#   rc=0 → "çözüldü" (değer 'null object or invalid expression' ise property TANIMSIZ),
+#   rc≠0 → "ÇÖZÜLEMEDİ" (mvn düştü: offline, bozuk pom, eksik parent…).
+# Eskiden her üç çağrı da `|| true` ile yutuluyordu; mvn herhangi bir sebeple düşünce
+# PKG_EXCLUDES boş kalıyor, script bunu "self-contained WAR" sanıp deploy gate'ini
+# EXIT 0 ile YEŞİL geçiriyordu — ölçüm hatasını başarı olarak raporlayan sahte yeşil
+# (final review, Important 1). Aynı deliği generate-war-excludes.sh'te de kapattık.
+eval_prop() {  # $1 = property adı
+    ${MVN} -q -B -Dstyle.color=never help:evaluate -Dexpression="$1" -DforceStdout 2>"${MVN_ERR}"
+}
+
+# Çözülemeyen property = ölçüm hatası = HARD FAILURE. Deploy gate'i "bilmiyorum"u
+# "sorun yok" diye raporlayamaz.
+prop_or_die() {  # $1 = property adı; stdout = değer ('null…' → boş)
+    local name="$1" val
+    if ! val="$(eval_prop "${name}")"; then
+        echo "HATA: '${name}' property'si ÇÖZÜLEMEDİ — 'mvn help:evaluate' başarısız oldu." >&2
+        echo "      Bu bir ÖLÇÜM HATASIDIR; deploy ön-kontrolü bu koşuda hiçbir şey doğrulayamaz." >&2
+        echo "      Çalışma dizini: ${APP_DIR}" >&2
+        sed 's/^/      | /' "${MVN_ERR}" >&2
+        exit 2
+    fi
+    [[ "${val}" == "null"* ]] && val=""
+    printf '%s' "${val}"
+}
+
 # --- SELF-CONTAINED WAR mı? Öyleyse denetlenecek bir şey yok ---
 # zeus.war.packaging-excludes, ince WAR dışlama regex'idir. Tip parent'ları onu BOŞALTARAK
 # self-contained WAR seçer (zeus-standalone-parent, zeus-bff-parent). O durumda uygulamanın
@@ -35,8 +66,7 @@ MVN="mvn"
 #
 # Kontrol PARENT ADINA değil POLİTİKA PROPERTY'sine bakar: böylece ileride eklenecek her
 # izole tip otomatik kapsanır ve script'in parent adlarını bilmesi gerekmez.
-PKG_EXCLUDES="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.war.packaging-excludes -DforceStdout 2>/dev/null || true)"
-[[ "${PKG_EXCLUDES}" == "null"* ]] && PKG_EXCLUDES=""
+PKG_EXCLUDES="$(prop_or_die zeus.war.packaging-excludes)"
 if [[ -z "${PKG_EXCLUDES// /}" ]]; then
     echo ">> Self-contained WAR (zeus.war.packaging-excludes boş) — kapsam denetimi ATLANDI."
     echo "   Tüm runtime bağımlılıklar WAR içinde taşınır; com.zeus module'ü kullanılmaz."
@@ -45,28 +75,43 @@ fi
 
 # App'in hedeflediği module SLOT'u (zeus.module.slot, zeus-parent'tan; üretilen
 # jboss-deployment-structure.xml'e yazılan değerle aynı kaynak). Kapsam bu slot'a karşı denetlenir.
-SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.module.slot -DforceStdout 2>/dev/null || true)"
-[[ -z "${SLOT}" || "${SLOT}" == "null"* ]] && SLOT="main"
+SLOT="$(prop_or_die zeus.module.slot)"
+[[ -z "${SLOT// /}" ]] && SLOT="main"
 MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/${SLOT}"
 
-# SOAP tipi uygulama mı? (zeus.soap.module.slot property'si zeus-parent'ta tanımlı — Task 1'de
-# zeus-soap-parent'tan taşındı; standart tip uygulamalar da com.zeus.soap'ı opt-in edebilsin
-# diye. Bkz. gelistirmeler/20-zeus-sms.md)
-# Öyleyse hem slot-kurulu-mu hem ters kapsam kontrolü com.zeus ∪ com.zeus.soap birleşimine
-# karşı yapılır. Bu çözüm bir ara sürümde eksik-bağımlılık dalıyla BİRLİKTE silinmişti;
-# oysa spec yalnız o dalın kaldırılmasını söylüyordu (final review, Important 5). Kurulu
-# olmayan bir com.zeus.soap slot'unu hedefleyen SOAP uygulaması, guard'ın önlemek için var
-# olduğu kriptik deploy hatasını alıyordu.
-SOAP_SLOT="$(${MVN} -q -Dstyle.color=never help:evaluate -Dexpression=zeus.soap.module.slot -DforceStdout 2>/dev/null || true)"
-[[ "${SOAP_SLOT}" == "null"* ]] && SOAP_SLOT=""
-SOAP_MODULE_DIR=""
-[[ -n "${SOAP_SLOT// /}" ]] && SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
+# Geçen / atlanan kontrollerin kaydı. Kapanış satırı BUNLARDAN üretilir; hiç koşmamış
+# olabilecek ölçümleri iddia eden sabit bir "✅ hepsi tamam" satırı basılmaz
+# (final review, Important 4 — yan not).
+PASSED=()
+SKIPPED=()
+
+# ─────────────────────────────────────────────────────────────────────────────────────
+# com.zeus.soap OPT-IN'i: uygulamanın NE YAPTIĞINA bakılır, platform sabitine DEĞİL.
+#
+# Eskiden ölçüt `zeus.soap.module.slot` property'sinin ÇÖZÜLMESİYDİ. O property Task 1'de
+# zeus-soap-parent'tan zeus-parent'a taşındı (doğru ve gerekliydi: standart tip uygulamalar
+# da com.zeus.soap'ı opt-in edebilsin diye) — ama böylece HER uygulamada 'main' çözülür
+# hale geldi. Sonuç: com.zeus.soap KURULU OLMAYAN bir sunucuda (yani yalnız REST kullanan,
+# "CXF com.zeus'a girmesin" kararının korumak için var olduğu NORMAL kurulumda) HER ince
+# WAR deploy'u exit 2 ile engelleniyordu (final review, Critical 1).
+#
+# Doğru ölçüt uygulamanın FİİLİ paketleme/descriptor davranışıdır ve iki bağımsız iz bırakır:
+#   (a) descriptor com.zeus.soap'ı import ediyor   → zeus.descriptor.extra.modules yazılmış,
+#   (b) dışlama listesi CXF'i WAR'dan atıyor       → zeus.war.packaging-excludes.with-soap'a
+#                                                     yönlendirilmiş.
+# İkisi UYGULAMANIN SORUMLULUĞUDUR ve BİRLİKTE yazılmalıdır; ikisi arasındaki tutarlılık
+# aşağıda İKİ YÖNLÜ denetlenir.
+# ─────────────────────────────────────────────────────────────────────────────────────
+# (b) izi: WAR build edilmemiş olsa bile okunabilir — bu yüzden yedek ölçüt olarak da kullanılır.
+EXCL_SOAP=0
+if grep -q 'cxf-core' <<< "${PKG_EXCLUDES}"; then EXCL_SOAP=1; fi
 
 # Üretilen-descriptor kontrolü: WAR build edilmişse içinde framework'ün ürettiği
 # jboss-deployment-structure.xml olmalı. Yoksa zeus-generated-descriptor profili devreye
 # girmemiştir (tipik neden: src/main/webapp dizini yok — boşsa .gitkeep ile var edilmeli);
 # böyle bir WAR WildFly'da com.zeus'u göremez ve kriptik açılış hatası verir.
 WAR="$(ls -t "${APP_DIR}"/target/*.war 2>/dev/null | head -n1 || true)"
+DESC_SOAP=0
 if [[ -n "${WAR}" ]]; then
     DESCRIPTOR_XML="$(unzip -p "${WAR}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null || true)"
     if ! grep -q 'name="com.zeus"' <<< "${DESCRIPTOR_XML}"; then
@@ -76,17 +121,19 @@ if [[ -n "${WAR}" ]]; then
         echo "      — profil bu dizinin varlığıyla aktifleşir) Sonra yeniden build edin." >&2
         exit 2
     fi
+    PASSED+=("üretilmiş descriptor WAR'da yerinde ($(basename "${WAR}"))")
 
-    # İKİ-PROPERTY TUTARLILIK KONTROLÜ (gelistirmeler/20-zeus-sms.md): standart tip bir
-    # uygulama com.zeus.soap'ı opt-in ederken İKİ property yazmak zorundadır — biri
-    # module'ü descriptor'a alır (zeus.descriptor.extra.modules), diğeri o module'ün
-    # jar'larını WAR'dan dışlar (zeus.war.packaging-excludes → …with-soap). Bu ikisinin
-    # BİRLİKTE yazılması uygulamanın sorumluluğudur; script'ler arasında yapısal bir bağ
-    # yoktur. Yalnız birincisi yazılırsa CXF hem com.zeus.soap module'ünden gelir hem
-    # WAR'da WEB-INF/lib'te taşınır — 08-wildfly-module-dagitim.md'nin ikinci-kopya kuralının
-    # ClassCastException/LinkageError ürettiğini söylediği tam senaryo. WAR yoksa bu kontrol
-    # de atlanır (üstteki descriptor kontrolüyle aynı desen).
-    if grep -q 'name="com.zeus.soap"' <<< "${DESCRIPTOR_XML}"; then
+    if grep -q 'name="com.zeus.soap"' <<< "${DESCRIPTOR_XML}"; then DESC_SOAP=1; fi
+
+    # İKİ-PROPERTY TUTARLILIK KONTROLÜ — İKİ YÖNLÜ (gelistirmeler/20-zeus-sms.md).
+    # Standart tip bir uygulama com.zeus.soap'ı opt-in ederken İKİ property yazmak
+    # zorundadır; script'ler arasında yapısal bir bağ yoktur, bağı bu kontrol kurar.
+    #
+    # YÖN 1 — descriptor VAR, dışlama YOK: CXF hem com.zeus.soap module'ünden gelir hem
+    # WAR'da WEB-INF/lib'te taşınır → 08-wildfly-module-dagitim.md'nin ikinci-kopya
+    # kuralının ClassCastException/LinkageError ürettiğini söylediği senaryo. Bu yönü
+    # WAR'ın FİİLİ içeriğinden ölçeriz (property'den değil): daha güçlü bir kanıttır.
+    if (( DESC_SOAP )); then
         CXF_JARS="$(unzip -l "${WAR}" 2>/dev/null | awk '{print $4}' | grep -E '^WEB-INF/lib/cxf-' || true)"
         if [[ -n "${CXF_JARS}" ]]; then
             echo "HATA: descriptor com.zeus.soap'ı import ediyor AMA WAR'ın WEB-INF/lib'inde CXF jar'ı VAR — çift kopya:" >&2
@@ -96,6 +143,44 @@ if [[ -n "${WAR}" ]]; then
             exit 2
         fi
     fi
+
+    # YÖN 2 (AYNA) — dışlama VAR, descriptor YOK: uygulama with-soap listesine geçmiş ama
+    # zeus.descriptor.extra.modules satırını unutmuş. 25 soap-only artefakt WAR'dan SİLİNİR
+    # ama hiçbir module onları vermez → NoClassDefFoundError. Bu, ters kapsam kontrolünün
+    # önlemek için var olduğu hatanın ta kendisidir; ayrıca AÇIK bir iddia olarak da
+    # söylenir çünkü nedeni tek satırda anlaşılsın (final review, Important 4).
+    if (( EXCL_SOAP && ! DESC_SOAP )); then
+        echo "HATA: zeus.war.packaging-excludes CXF'i WAR'dan dışlıyor (…with-soap listesi) AMA" >&2
+        echo "      üretilen descriptor com.zeus.soap module'ünü import ETMİYOR." >&2
+        echo "      CXF yığınını WAR'dan silip yerine hiçbir module koymayan bu yapılandırma" >&2
+        echo "      WildFly'da NoClassDefFoundError üretir." >&2
+        echo "      Çözüm: app pom'una da şunu ekleyin:" >&2
+        echo "        <zeus.descriptor.extra.modules>com.zeus.soap</zeus.descriptor.extra.modules>" >&2
+        echo "      (iki property BİRLİKTE yazılır — bkz. gelistirmeler/20-zeus-sms.md)" >&2
+        exit 2
+    fi
+    PASSED+=("iki-property tutarlılığı (descriptor ⇔ dışlama listesi, iki yönlü)")
+else
+    SKIPPED+=("descriptor ve iki-property kontrolleri (target/ altında WAR yok — önce 'mvn package')")
+fi
+
+# NİHAİ KARAR: uygulama com.zeus.soap'ı kullanıyor mu? WAR varsa descriptor izi otoritedir;
+# yoksa dışlama listesi izi yedek ölçüttür.
+USES_SOAP=0
+if (( DESC_SOAP || EXCL_SOAP )); then USES_SOAP=1; fi
+
+SOAP_SLOT=""
+SOAP_MODULE_DIR=""
+if (( USES_SOAP )); then
+    # Slot değeri YALNIZ opt-in doğrulandıktan SONRA okunur. (Bu çözüm bir ara sürümde
+    # eksik-bağımlılık dalıyla BİRLİKTE silinmişti; oysa spec yalnız o dalın kaldırılmasını
+    # söylüyordu — kurulu olmayan bir com.zeus.soap slot'unu hedefleyen uygulama, guard'ın
+    # önlemek için var olduğu kriptik deploy hatasını alıyordu.)
+    SOAP_SLOT="$(prop_or_die zeus.soap.module.slot)"
+    [[ -z "${SOAP_SLOT// /}" ]] && SOAP_SLOT="main"
+    SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
+else
+    SKIPPED+=("com.zeus.soap slot kontrolü (uygulama bu module'ü opt-in ETMİYOR)")
 fi
 
 # Slot-kurulu-mu kontrolü: app'in işaret ettiği slot sunucuda yoksa deploy kriptik açılış
@@ -110,16 +195,21 @@ if [[ ! -f "${MODULE_DIR}/module.xml" ]]; then
     fi
     exit 2
 fi
+PASSED+=("com.zeus:${SLOT} slot'u sunucuda kurulu")
 
-if [[ -n "${SOAP_MODULE_DIR}" && ! -f "${SOAP_MODULE_DIR}/module.xml" ]]; then
-    echo "HATA: uygulamanın hedeflediği com.zeus.soap:${SOAP_SLOT} slot'u bu sunucuda kurulu değil: ${SOAP_MODULE_DIR}" >&2
-    if [[ "${SOAP_SLOT}" == "main" ]]; then
-        echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )" >&2
-    else
-        echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap --slot ${SOAP_SLOT} )" >&2
-        echo "      (yeni slot kurulumu WildFly restart'ı gerektirmez)" >&2
+if [[ -n "${SOAP_MODULE_DIR}" ]]; then
+    if [[ ! -f "${SOAP_MODULE_DIR}/module.xml" ]]; then
+        echo "HATA: uygulamanın hedeflediği com.zeus.soap:${SOAP_SLOT} slot'u bu sunucuda kurulu değil: ${SOAP_MODULE_DIR}" >&2
+        echo "      (uygulama bu module'ü OPT-IN ediyor: descriptor import'u ve/veya CXF dışlaması var)" >&2
+        if [[ "${SOAP_SLOT}" == "main" ]]; then
+            echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )" >&2
+        else
+            echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap --slot ${SOAP_SLOT} )" >&2
+            echo "      (yeni slot kurulumu WildFly restart'ı gerektirmez)" >&2
+        fi
+        exit 2
     fi
-    exit 2
+    PASSED+=("com.zeus.soap:${SOAP_SLOT} slot'u sunucuda kurulu (opt-in)")
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
@@ -145,9 +235,10 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────────────
 FIXED_TAIL="$("${FW_ROOT}/scripts/generate-war-excludes.sh" --print fixed-tail)"
 
-if ! PKG_EXCLUDES="${PKG_EXCLUDES}" FIXED_TAIL="${FIXED_TAIL}" \
-     MODULE_DIR="${MODULE_DIR}" SOAP_MODULE_DIR="${SOAP_MODULE_DIR}" \
-     SLOT="${SLOT}" SOAP_SLOT="${SOAP_SLOT}" python3 - <<'PY'
+set +e
+PKG_EXCLUDES="${PKG_EXCLUDES}" FIXED_TAIL="${FIXED_TAIL}" \
+MODULE_DIR="${MODULE_DIR}" SOAP_MODULE_DIR="${SOAP_MODULE_DIR}" \
+SLOT="${SLOT}" SOAP_SLOT="${SOAP_SLOT}" python3 - <<'PY'
 import os, re, sys
 
 rx = os.environ['PKG_EXCLUDES'].strip()
@@ -157,9 +248,11 @@ tail = os.environ['FIXED_TAIL'].strip()
 m = re.match(r'^%regex\[WEB-INF/lib/\((.*)\)-\[0-9\]\[\^/\]\*\\\.jar\]$', rx)
 if not m:
     # Elle yazılmış / beklenmedik biçim: denetleyecek yapılandırılmış bilgi yok.
+    # ÇIKIŞ KODU 3 = "atlandı" (0 = koştu ve geçti, 1 = kırmızı) — çağıran bash bu üçünü
+    # ayırt eder ki kapanış satırı koşmamış bir kontrolü GEÇTİ diye saymasın.
     print(">> UYARI: zeus.war.packaging-excludes üreticinin bastığı biçimde değil —"
           " ters kapsam kontrolü ATLANDI.")
-    sys.exit(0)
+    sys.exit(3)
 
 tokens = m.group(1).split('|')
 
@@ -210,8 +303,21 @@ if missing:
 
 print(">> Ters kapsam: %d dışlanan artifactId'nin hepsi %s slot'unda mevcut." % (checked, slots))
 PY
-then
-    exit 1
-fi
+rev_rc=$?
+set -e
+case "${rev_rc}" in
+    0) PASSED+=("ters kapsam: dışlanan her artifactId hedeflenen slot(lar)da mevcut") ;;
+    3) SKIPPED+=("ters kapsam (zeus.war.packaging-excludes üreticinin biçiminde değil)") ;;
+    *) exit 1 ;;
+esac
 
-echo "✅ Slot kurulu, üretilmiş descriptor yerinde, dışlanan jar'lar slot'ta mevcut."
+# Kapanış satırı SABİT DEĞİL: yalnızca GERÇEKTEN koşan kontrolleri sayar, atlananları
+# ayrıca söyler. Eskiden koşulsuz basılan "✅ Slot kurulu, üretilmiş descriptor yerinde,
+# dışlanan jar'lar slot'ta mevcut." satırı, WAR yokken hiç yapılmamış iki ölçümü de
+# iddia ediyordu (final review, Important 4 — yan not).
+echo "✅ Deploy ön-kontrolü geçti. Doğrulanan:"
+for c in "${PASSED[@]}"; do echo "   - ${c}"; done
+if ((${#SKIPPED[@]})); then
+    echo "   ATLANAN kontroller (bu koşuda ölçülmedi):"
+    for c in "${SKIPPED[@]}"; do echo "   - ${c}"; done
+fi

@@ -48,7 +48,13 @@ mvn dependency:tree -Dincludes=<groupId>:<artifactId>
 - `<dependencyManagement>` → `zeus-dependencies` BOM import'u (sürüm yazmadan zeus-* + 3. parti kullanımı).
 - `<dependencies>` → `spring-boot-starter-test` (**test** scope) — aşağıdaki "Test altyapısı".
 - `<pluginManagement>`:
-  - `maven-war-plugin` → **ince WAR politikası**: `%regex[WEB-INF/lib/(?!zeus-).*\.jar]` (zeus-* WAR'da, 3. parti hariç).
+  - `maven-war-plugin` → **ince WAR politikası**: `${zeus.war.packaging-excludes}`. Bu property'nin
+    değeri **ÜRETİLİR** (`scripts/generate-war-excludes.sh`), paylaşımlı module'ün bağımlılık
+    sözleşmesinden. Polarite **denylist**'tir: *module'ün verdiğini at, kalanı WAR'da taşı*.
+    (Eski `%regex[WEB-INF/lib/(?!zeus-).*\.jar]` allowlist'i KALDIRILDI — module'de olmayan
+    bağımlılığı da siliyordu; bkz. `19-war-paketleme-module-farkindaligi.md`.)
+    `zeus-soap-parent` için ikinci bir liste (`com.zeus ∪ com.zeus.soap`, 193 alternatif) ve
+    `zeus-parent`'ta opt-in edenler için `zeus.war.packaging-excludes.with-soap` aynı üreteçten gelir.
   - `maven-compiler-plugin` → Lombok annotation processor yolu.
   - `spring-boot-maven-plugin` → `repackage` skip (fat WAR yok; `spring-boot:run` açık).
 

@@ -31,7 +31,7 @@ bulur; onsuz bus başlamaz.
 
 **Reddedilen alternatif — konteynerin JBossWS'i:** hiç jar paketlemez ama CXF'e özgü
 yeteneklere (interceptor, WS-Security yapılandırması) kod erişimi kalmaz; SMS istemcisinin
-correlation ID'yi SOAP header'a basması bunu gerektiriyor.
+correlation ID'yi giden isteğin protokol header'ına basması bunu gerektiriyor.
 
 ## Spike: konteynerin CXF'iyle çakışır mı? — ÖLÇÜLDÜ, ÇAKIŞMIYOR
 
@@ -116,8 +116,23 @@ disiplinidir → `17-module-yenileme-runbook.md`'ye adım olarak yazılır.
 Üretimde gerçek SMS servisinin SEI'si aynı desenle yazılır.
 
 **Correlation ID:** `zeus-soap`'ta sunucu tarafı için `CorrelationIdSoapInterceptors` var;
-istemci tarafında aynı desen kullanılır — MDC'deki kimlik giden SOAP header'ına basılır
+istemci tarafında **aynı mekanizma** kullanılır — `CorrelationId.get()` değeri giden çağrının
+**HTTP protokol header'ına** (`CorrelationId.HEADER_NAME` = `X-Correlation-Id`) yazılır
 (`18-correlation-id.md`).
+
+Kimlik bilinçli olarak **SOAP zarfına konmaz**. İki gerekçe:
+
+1. **Karşı taraf framework'ün kendisi olabilir.** `zeus-soap`'ın `Inbound` interceptor'ı
+   kimliği HTTP header'ından okur. Zarfa `<correlationId>` elemanı konsaydı bir Zeus SOAP
+   servisi bu istemciden gelen çağrıda hiçbir kimlik GÖRMEZ, yenisini üretirdi — "çağrı
+   zinciri SMS servisinin loglarında da aynı kimlikle izlenebilir" hedefi tam da framework'ün
+   kendi sunucularına karşı çalışmazdı (final review, Important 3).
+2. **Zarfa dokunmak sözleşmeyi değiştirir.** `CorrelationIdSoapInterceptors`'ın javadoc'undaki
+   kural birebir budur: *"SOAP zarfına dokunulmaz, WSDL sözleşmesi değişmez"*. Katı
+   `mustUnderstand` denetleyen bir karşı taraf beklenmedik zarf header'ını reddedebilir.
+
+MDC anahtarı da elle yazılmaz: `CorrelationId.get()` / `CorrelationId.HEADER_NAME` sabitleri
+repodaki tek kaynaktır.
 
 ## Hata yönetimi
 
@@ -135,8 +150,9 @@ tutabilecek bu değerler bir SMS çağrısı için fazlasıyla uzundur.
 - ✅ **Birim/entegrasyon:** `zeus-sms/src/test/java/com/zeus/framework/sms/ZeusSmsClientTest.java`
   CXF'in `JaxWsServerFactoryBean`'i ile **yerel gerçek bir endpoint** ayağa kaldırıp tam SOAP
   turu atıyor (mock değil — serileştirme, bus ve transport gerçekten çalışıyor); ayrıca
-  `CorrelationIdPropagationTest` (giden SOAP header'ına correlation ID damgası, MDC boşken
-  header eklenmediği negatif yol dahil) ve `ZeusSmsPropertiesTest`. `mvn clean install`
+  `CorrelationIdPropagationTest` (giden çağrının `X-Correlation-Id` **protokol header'ına**
+  correlation ID damgası — sunucu tarafında `zeus-soap`'ın `Inbound`'u ile AYNI yoldan
+  okunarak; kimlik yokken header eklenmediği negatif yol dahil) ve `ZeusSmsPropertiesTest`. `mvn clean install`
   (2026-09-09 koşusu, `JAVA_HOME=openjdk@25`) **EXIT 0** — tüm modüller dahil tam build yeşil.
 - ✅ **Uçtan uca:** standart tipte `spring-wildfly-arch`'a eklenip gerçek WildFly 41'e deploy
   edildi (Task 6, app repo commit `d9b0742`). `POST /api/sms` → beklenen `500`

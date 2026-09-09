@@ -25,10 +25,17 @@ Module ile ilgili her şey framework'e (platform) aittir.
 
 | Yetenek | Sahip | Nasıl zorlanır |
 |---------|-------|----------------|
-| WAR'dan 3. parti jar'ı dışlama (ince WAR) | **Framework** | `zeus-parent` `maven-war-plugin` `packagingExcludes` (`%regex[WEB-INF/lib/(?!zeus-).*\.jar]`) → uygulama configsiz miras alır; `zeus-` ile başlamayan **hiçbir** jar WAR'a giremez. |
+| WAR'dan 3. parti jar'ı dışlama (ince WAR) | **Framework** | `zeus-parent` `maven-war-plugin` `packagingExcludes` → `${zeus.war.packaging-excludes}`. Değer **ÜRETİLİR**, elle yazılmaz: `scripts/generate-war-excludes.sh` onu paylaşımlı module'ün bağımlılık sözleşmesinden basar (bugün 168 alternatif = 159 artifactId + 9 sabit-kuyruk kalıbı). Uygulama configsiz miras alır. |
 | Paylaşımlı `com.zeus` module'ünü oluşturma/güncelleme | **Framework** | `zeus-fw/scripts/install-zeus-module.sh` yalnızca bu repodadır; uygulamalarda module üretim aracı **yoktur**. |
 | Module'e jar ekleme | **Framework** | İçerik `zeus-wildfly-module` bağımlılık sözleşmesinden gelir; uygulama `modules/`'a yazmaz. |
 | WAR deploy | **Uygulama** | Her uygulamanın kendi `scripts/deploy.sh`'ı yalnızca `standalone/deployments/`'a kopyalar. |
+
+> **POLARİTE — ALLOWLIST DEĞİL, DENYLIST.** Yukarıdaki satır bir dönem `%regex[WEB-INF/lib/(?!zeus-).*\.jar]`
+> yazıyordu: "`zeus-` ile başlamayan HER ŞEY atılır" (allowlist). O kural **kaldırıldı**, çünkü
+> paylaşımlı module'de OLMAYAN bir bağımlılık da sessizce siliniyor ve WildFly'da
+> `NoClassDefFoundError` üretiyordu. Bugünkü kural tersidir: **"module'ün verdiğini at, kalan
+> her şeyi WAR'da taşı."** Liste bu yüzden module sözleşmesinden ÜRETİLİR — aynı kümeyi iki
+> yerde tutmak drift'in tanımıdır. Gerekçe: `19-war-paketleme-module-farkindaligi.md`.
 
 **Kural:** Uygulamalar `maven-war-plugin` yapılandırmasını **override etmemeli** (fat WAR yasak) ve
 WildFly `modules/` dizinine **dokunmamalıdır**. Bu sınır bugün yapısal olarak sağlanır (uygulamada

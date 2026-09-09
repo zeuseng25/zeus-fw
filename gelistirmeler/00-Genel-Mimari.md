@@ -103,12 +103,26 @@ Modüllerdeki `@AutoConfiguration` sınıfları `META-INF/spring/org.springframe
 Bu politika `zeus-parent`'ta standartlaştırılmıştır — `maven-war-plugin`:
 
 ```xml
-<packagingExcludes>%regex[WEB-INF/lib/(?!zeus-).*\.jar]</packagingExcludes>
+<packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>
 ```
 
-`zeus-` ile başlamayan tüm jar'lar WAR'dan dışlanır; yalnızca zeus-* kalır. Sonuç WAR ≈ 40 KB (yalnızca zeus-* jar'ları + uygulama sınıfları).
+**Listenin polaritesi DENYLIST'tir.** Property'nin değeri elle yazılmaz; paylaşımlı WildFly
+module'ünün **bağımlılık sözleşmesinden ÜRETİLİR** (`scripts/generate-war-excludes.sh --write`,
+`zeus-parent/pom.xml`'deki `ZEUS-WAR-EXCLUDES` marker bloğuna). Kural:
 
-Tamamlayıcı olarak `spring-wildfly-arch/scripts/install-zeus-module.sh` module'e jar toplarken **zeus-* jar'larını dışlar** (aksi halde sınıflar hem module'de hem WAR'da olur → LinkageError riski). Böylece zeus-* yalnızca WAR'da, 3. parti yalnızca module'de bulunur. Module değiştiğinde WildFly restart gerekir; sadece zeus kodu değiştiğinde restart gerekmez (WAR yeniden deploy yeter).
+> **module'ün verdiği jar'ı WAR'dan at; kalan her şeyi WAR'da taşı.**
+
+Bir dönem tersi geçerliydi — `%regex[WEB-INF/lib/(?!zeus-).*\.jar]`, yani "`zeus-` ile
+başlamayan her şey atılır" (allowlist). O kural **kaldırıldı**: module'de OLMAYAN bir
+bağımlılığı da sessizce siliyor ve WildFly'da `NoClassDefFoundError` üretiyordu. Bugün
+app'e özel bir kütüphane hiçbir şey yazılmadan WAR'da taşınır. Gerekçe:
+`19-war-paketleme-module-farkindaligi.md`.
+
+Bugünkü ölçüm (2026-09-09): standart liste **168 alternatif** (159 artifactId + 9 sabit-kuyruk
+kalıbı), `com.zeus` module'ünde **157 jar**. `spring-wildfly-arch` WAR'ı **88 KB** — içinde
+yalnız 6 `zeus-*` jar'ı + uygulama sınıfları.
+
+Tamamlayıcı olarak `zeus-fw/scripts/install-zeus-module.sh` (module üretimi PLATFORM işidir, uygulamada bu araç yoktur) module'e jar toplarken **zeus-* jar'larını dışlar** (aksi halde sınıflar hem module'de hem WAR'da olur → LinkageError riski). Böylece zeus-* yalnızca WAR'da, 3. parti yalnızca module'de bulunur. Module değiştiğinde WildFly restart gerekir; sadece zeus kodu değiştiğinde restart gerekmez (WAR yeniden deploy yeter).
 
 > Detaylı entegrasyon: `spring-wildfly-arch/gelistirmeler/13-zeus-framework-entegrasyonu.md`.
 

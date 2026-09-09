@@ -82,8 +82,10 @@ bağımlılığı yoktur, subsystem dışlamaları kalır.
    ve module'e konsa tüm uygulamalara dayatılırdı — bkz. `08`'deki birleşim kuralı).
 2. Uygulama kendi sürümlerini **platform slot rollout'undan bağımsız** yamalayabilmeli
    (tipik olarak güvenlik bileşenleri: auth/authorization server).
-3. Kısmi çözüm yetmiyor: `zeus.war.keep` yalnız önek bazlı bundling yapar; Spring ailesinin
-   bir kısmı WAR'da bir kısmı module'de kalırsa **classloader bölünmesi** oluşur.
+3. Kısmi çözüm yetmiyor: ince WAR listesinden birkaç artefaktı elle geri almak (bir dönem
+   `zeus.war.keep` property'sinin yaptığı iş; o property **kaldırıldı**, bkz.
+   `19-war-paketleme-module-farkindaligi.md`) Spring ailesinin bir kısmını WAR'da bir kısmını
+   module'de bırakır → **classloader bölünmesi**.
 
 Üçüncü madde teorik değil, ölçülmüş bir kısıttır: `com.zeus` module classloader'ı WAR'ın
 `WEB-INF/lib`'ini göremez. Bu yüzden module'deki `spring-boot`, WAR'daki
@@ -134,10 +136,16 @@ var. `zeus-parent`'ta tipe özel olan yalnızca **4 property tanımı**:
 
 | Property | Kime ait |
 |---|---|
-| `zeus.war.packaging-excludes` | ince WAR |
-| `zeus.war.keep` | ince WAR |
+| `zeus.war.packaging-excludes` | ince WAR (değeri ÜRETİLİR — `scripts/generate-war-excludes.sh`) |
+| `zeus.war.packaging-excludes.with-soap` | ince WAR + `com.zeus.soap` opt-in'i (aynı üreteç) |
 | `zeus.module.slot` | com.zeus'a bağlanan tipler |
+| `zeus.soap.module.slot` | com.zeus.soap'ı opt-in eden her tip (platform sabiti) |
 | `zeus.descriptor.dir` | standart tip varsayılanı |
+
+> `zeus.war.keep` bu tabloda ARTIK YOK: denylist polaritesine geçişte kaldırıldı. Bugün
+> module'de olmayan bir bağımlılık zaten WAR'da taşınır, dolayısıyla "bundle istisnası"
+> yazacak bir şey kalmadı (`19-war-paketleme-module-farkindaligi.md`). Kalıntı bırakılmadığını
+> `scripts/test-no-war-keep.sh` guard'ı denetler.
 
 Geri kalan her şey bu property'leri **okur**, değerlerini varsaymaz
 (`<packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>`, profilde
@@ -155,9 +163,14 @@ pom'da 250 satırlık taşıma + zincire yayınlanan bir artefakt daha).
 property'leri boşaltır:
 
 ```xml
-<zeus.module.slot/>   <!-- bu tip com.zeus'a bağlanmaz -->
-<zeus.war.keep/>      <!-- dışlama yok → bundle istisnası anlamsız -->
+<zeus.module.slot/>              <!-- bu tip com.zeus'a bağlanmaz -->
+<zeus.war.packaging-excludes/>   <!-- self-contained WAR: hiçbir jar dışlanmaz -->
 ```
+
+(Bu blokta bir dönem `<zeus.war.keep/>` de vardı; property kaldırılınca boşaltılacak bir şey
+de kalmadı.) `zeus.war.packaging-excludes`'un BOŞ olması aynı zamanda
+`verify-module-coverage.sh`'ın "self-contained WAR" ölçütüdür — aşağıdaki "Kapsam denetimi"
+notuna bakın.
 
 Boşaltılmazsa `help:effective-pom` çıktısında `slot: main` görünür ve okuyan kişi
 uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bff` ve
@@ -169,7 +182,8 @@ uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bf
 Şunlardan biri gerçekleşirse base ayrımı kazanılmış olur ve yapılmalıdır:
 
 1. **4. tip parent** ekleniyor ve o da izole (tiplerin çoğunluğu politikayı ezer hale gelir).
-2. `zeus.module.slot` / `zeus.war.keep` mirası **yeni bir yerde** yanlış davranışa yol açıyor.
+2. `zeus.module.slot` / `zeus.war.packaging-excludes` mirası **yeni bir yerde** yanlış
+   davranışa yol açıyor.
 3. Base seviyesinde, **standart tipe uygulanmaması gereken** bir yapılandırma ihtiyacı doğuyor.
 
 ## SOAP hattı (Apache CXF 4.2.x)

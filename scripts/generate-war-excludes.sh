@@ -21,11 +21,21 @@ set -euo pipefail
 FW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MVN="${MVN:-mvn}"
 
-# "Neredeyse boş" bir listeyi yakalamak için akıl-sağlığı tabanı (gerçek liste ~150+
-# artifactId içerir). `mvn dependency:list` sessizce başarısız olur/eksik çıktı verirse
-# bu taban, WAR'a giren her şeyin silinip com.zeus module'üyle çift kopya oluşmasını
-# (ya da tam tersi — her şeyin WAR'a dolmasını) önceden yakalar; bkz. fix round 1, Important 1.
-MIN_ARTIFACT_IDS=20
+# İKİ KATMANLI AKIL SAĞLIĞI TABANI.
+#
+# 1) MUTLAK TABAN — "neredeyse boş" listeyi yakalar. Gerçek listeler 168 (standard) ve
+#    193 (soap) artifactId içeriyor; eski taban 20 idi ve bu, listenin %88'ini kaybettiği
+#    bir ölçüm hatasını bile YEŞİL geçirirdi. Asıl tehlikeli yön KISALMIŞ listedir: daha az
+#    dışlama = module'ün ZATEN verdiği jar'lar WAR'a girer = 08-wildfly-module-dagitim.md'nin
+#    ikinci-kopya LinkageError'ı. Taban orantılı hale getirildi (final review, M1).
+MIN_ARTIFACT_IDS=100
+#
+# 2) KÜÇÜLME EŞİĞİ — mutlak taban yalnız felaketi yakalar; sessizce 168'den 120'ye düşen bir
+#    liste ondan geçerdi. Bu yüzden yeni liste, POM'da HÂLİHAZIRDA COMMIT'Lİ olan sayıyla da
+#    karşılaştırılır: %10'dan fazla küçülme AÇIK BİR BAYRAK olmadan reddedilir.
+#    Meşru küçülme (bir bağımlılık gerçekten kaldırıldı) için: ZEUS_ALLOW_SHRINK=1 ile çalıştırın.
+SHRINK_TOLERANCE_PCT=10
+ZEUS_ALLOW_SHRINK="${ZEUS_ALLOW_SHRINK:-0}"
 
 # Module'de OLMAYAN ama WAR'a da GİRMEMESİ gereken küme.
 #   ojdbc/orai18n/ucp → WildFly'ın kendi com.oracle.ojdbc module'ünden gelir; WAR'daki
@@ -75,22 +85,60 @@ closure_artifact_ids() {
     rm -f "${out}" "${err}"
 }
 
+# POM'da HÂLİHAZIRDA commit'li listedeki artifactId sayısı (sabit kuyruk HARİÇ).
+# Dosya/property/beklenen biçim yoksa -1 ("bilinmiyor") döner — o durumda küçülme
+# karşılaştırması yapılmaz, yalnız mutlak taban uygulanır.
+committed_id_count() {  # $1=pom  $2=property adı
+    if [[ ! -f "$1" ]]; then printf '%s\n' -1; return 0; fi
+    POM="$1" PROP="$2" TAIL="${FIXED_TAIL}" python3 - <<'PY'
+import io, os, re
+s = io.open(os.environ['POM'], encoding='utf-8').read()
+prop = os.environ['PROP']
+tail = os.environ['TAIL']
+m = re.search(r'<' + re.escape(prop) + r'>(.*?)</' + re.escape(prop) + r'>', s, re.S)
+if not m:
+    print(-1); raise SystemExit
+mm = re.match(r'^%regex\[WEB-INF/lib/\((.*)\)-\[0-9\]\[\^/\]\*\\\.jar\]$', m.group(1).strip())
+if not mm:
+    print(-1); raise SystemExit
+alts = mm.group(1)
+suffix = '|' + tail
+if alts.endswith(suffix):
+    alts = alts[:-len(suffix)]
+print(len([t for t in alts.split('|') if t]))
+PY
+}
+
 # artifactId listesini (stdin) alır; boş/şüpheli derecede küçükse HATA basıp non-zero
 # döner — geçerse listeyi olduğu gibi stdout'a basar. Boş bir listenin build_regex'e
 # sessizce ulaşıp neredeyse-hiçbir-şeyi-dışlamayan bir regex üretmesine karşı son
-# savunma hattı (fix round 1, Important 1).
-check_ids_sane() {  # $1=etiket (hata mesajında kullanılır)
-    local label="$1" ids n
+# savunma hattı (fix round 1, Important 1) + belirgin KÜÇÜLMEYE karşı ikinci hat
+# (final review, M1).
+check_ids_sane() {  # $1=etiket (hata mesajında kullanılır)  $2=commit'li sayı (-1=bilinmiyor)
+    local label="$1" committed="${2:--1}" ids n floor
     ids="$(cat)"
     n=0
     if [[ -n "${ids}" ]]; then
         n="$(grep -c . <<< "${ids}" || true)"
     fi
     if (( n < MIN_ARTIFACT_IDS )); then
-        echo "HATA: '${label}' listesi şüpheli derecede küçük (${n} artifactId, taban=${MIN_ARTIFACT_IDS})." >&2
+        echo "HATA: '${label}' listesi şüpheli derecede küçük (${n} artifactId, mutlak taban=${MIN_ARTIFACT_IDS})." >&2
         echo "      Olası neden: 'mvn dependency:list' sessizce başarısız oldu / eksik çıktı üretti." >&2
         echo "      Yazma İPTAL edildi — POM'lar DEĞİŞTİRİLMEDİ." >&2
         return 1
+    fi
+    if (( committed > 0 )); then
+        # Tam sayı aritmetiği: yeni liste, commit'li sayının (100-tolerans)%'inden azsa RED.
+        floor=$(( committed * (100 - SHRINK_TOLERANCE_PCT) / 100 ))
+        if (( n < floor && ZEUS_ALLOW_SHRINK != 1 )); then
+            echo "HATA: '${label}' listesi BELİRGİN ŞEKİLDE KÜÇÜLDÜ: ${committed} → ${n} artifactId" >&2
+            echo "      (kabul edilen alt sınır=${floor}, tolerans=%${SHRINK_TOLERANCE_PCT})." >&2
+            echo "      Kısalmış bir dışlama listesi, module'ün ZATEN verdiği jar'ları WAR'a sokar" >&2
+            echo "      → aynı sınıfın iki kopyası → LinkageError (gelistirmeler/08-wildfly-module-dagitim.md)." >&2
+            echo "      Küçülme GERÇEKTEN kastediliyorsa (bağımlılık kaldırıldı):" >&2
+            echo "        ZEUS_ALLOW_SHRINK=1 ./scripts/generate-war-excludes.sh --write" >&2
+            return 1
+        fi
     fi
     printf '%s\n' "${ids}"
 }
@@ -105,13 +153,20 @@ build_regex() {
     printf '%%regex[WEB-INF/lib/(%s|%s)-[0-9][^/]*\\.jar]\n' "${alt}" "${FIXED_TAIL}"
 }
 
-list_standard() { closure_artifact_ids zeus-wildfly-module | check_ids_sane "standard" | build_regex; }
+list_standard() {
+    closure_artifact_ids zeus-wildfly-module \
+      | check_ids_sane "standard" "$(committed_id_count "${STD_POM}" "zeus.war.packaging-excludes")" \
+      | build_regex
+}
 
 list_soap() {
     # BİRLEŞİM: com.zeus ∪ com.zeus.soap. SOAP WAR'ına iki module'ün de içeriği girmemeli;
     # tek liste kullanılsa CXF yığını WAR'a girer ve com.zeus.soap ile çift kopya olurdu.
+    # Küçülme karşılaştırmasının referansı zeus-soap-parent'taki commit'li listedir.
     { closure_artifact_ids zeus-wildfly-module
-      closure_artifact_ids zeus-soap-wildfly-module; } | sort -u | check_ids_sane "soap" | build_regex
+      closure_artifact_ids zeus-soap-wildfly-module; } | sort -u \
+      | check_ids_sane "soap" "$(committed_id_count "${SOAP_POM}" "zeus.war.packaging-excludes")" \
+      | build_regex
 }
 
 # Marker'ları hem bash guard'ında hem python tarafında AYNI ALT DİZE ile ararız (fix
@@ -143,15 +198,31 @@ MARK2_END='ZEUS-WAR-EXCLUDES-SOAP:END'
 # `--check` ise o stdout'u /dev/null'a yolluyordu → marker bir merge/elle düzenlemeyle
 # kaybolduğunda `--check` "✅ uyumlu" diyordu. Tüm gerekçesi "drift yapısal olarak
 # imkânsız" olan bir mekanizmada drift detektörünün kendi hata biçimi SESSİZ OLAMAZ.
-# (Dosyanın hiç olmaması atlama olarak kalır — opsiyonel tip parent'ı senaryosu.)
+# KAYNAK DOSYA YOKSA: davranış $7 ile BELİRTİLİR, varsayılan ZORUNLU'dur (final review, M2).
+# Eskiden her eksik dosya sessizce atlanıyordu: `zeus-parent/pom.xml` yoksa (bozuk checkout,
+# yanlış FW_ROOT, yarım merge) zincir hiç koşmuyor, `--check` diff edecek bir şey bulamıyor ve
+# `✅ ... uyumlu.` basıyordu. `zeus-parent/pom.xml`'in yokluğu YAPISAL BİR HATADIR — her
+# uygulamanın parent'ı odur. Atlama YALNIZ `zeus-soap-parent` için meşrudur (opsiyonel tip
+# parent'ı); orada da sessiz değil, stdout'a açık bir not düşülerek.
 #
 # $1=kaynak dosya  $2=property adı  $3=marker-begin  $4=marker-end  $5=regex  $6=hedef dosya
+# $7=eksikse-atla (1 = opsiyonel; boş/0 = ZORUNLU, yoksa HATA)
 # KAYNAK == HEDEF DEĞİL: zeus-parent iki bloğu ZİNCİRLEME günceller — birinci çağrının
 # ÇIKTISI ikinci çağrının KAYNAĞI olur (bkz. --write/--check'teki iki aşamalı kullanım),
 # böylece aynı POM'daki iki bağımsız marker bloğu birbirini EZMEDEN güncellenir.
 render_pom() {
-    local pom="$1" prop="$2" mark_begin="$3" mark_end="$4" regex="$5" out="$6"
-    [[ -f "${pom}" ]] || { echo ">> atlandı (yok): ${pom}"; return 0; }
+    local pom="$1" prop="$2" mark_begin="$3" mark_end="$4" regex="$5" out="$6" optional="${7:-0}"
+    if [[ ! -f "${pom}" ]]; then
+        if [[ "${optional}" == "1" ]]; then
+            echo ">> atlandı (opsiyonel tip parent'ı yok): ${pom}"
+            return 0
+        fi
+        echo "HATA: ZORUNLU kaynak POM bulunamadı: ${pom}" >&2
+        echo "      Bu dosya olmadan '${prop}' listesi ÜRETİLEMEZ ve drift detektörü" >&2
+        echo "      denetleyecek hiçbir şey bulamaz — 'atlandı' değil, YAPISAL HATA." >&2
+        echo "      Olası neden: bozuk/eksik checkout, yanlış FW_ROOT, yarım merge." >&2
+        return 1
+    fi
     if ! grep -q "${mark_begin}" "${pom}"; then
         echo "HATA: '${mark_begin}' marker'ı bulunamadı: ${pom}" >&2
         echo "      Üretilen blok bir merge / elle düzenleme ile kaybolmuş olabilir." >&2
@@ -238,8 +309,10 @@ case "${1:---check}" in
             "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" || exit 1
         render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
             "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" || exit 1
+        # SOAP_POM opsiyonel (7. argüman=1): zeus-soap-parent bir TİP parent'ıdır, her
+        # kurulumda bulunmak zorunda değildir. STD_POM ise zorunludur — varsayılan.
         render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
-            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" || exit 1
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" 1 || exit 1
         install_pom "${tmp}/std.pom"  "${STD_POM}"
         install_pom "${tmp}/soap.pom" "${SOAP_POM}"
         ;;
@@ -249,12 +322,15 @@ case "${1:---check}" in
         tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
         regex_std="$(list_standard)" || { echo "HATA: standard listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
+        # render_pom'un stdout'u ARTIK YUTULMUYOR: tek bastığı şey "opsiyonel parent yok"
+        # notudur ve `--check`'in onu /dev/null'a yollaması, atlamayı görünmez kılıyordu
+        # (final review, M2). STD_POM ve zincirin ikinci aşaması ZORUNLU'dur (7. argüman yok).
         render_pom "${STD_POM}" "zeus.war.packaging-excludes" \
-            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" >/dev/null || exit 1
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" || exit 1
         render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
-            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" >/dev/null || exit 1
+            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" || exit 1
         render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
-            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" >/dev/null || exit 1
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" 1 || exit 1
         rc=0
         if [[ -f "${tmp}/std.pom" ]]; then
             diff -q "${STD_POM}" "${tmp}/std.pom" >/dev/null || rc=1

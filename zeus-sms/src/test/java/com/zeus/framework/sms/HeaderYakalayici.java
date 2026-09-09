@@ -1,27 +1,46 @@
 package com.zeus.framework.sms;
 
+import com.zeus.framework.correlation.CorrelationId;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
-import org.apache.cxf.binding.soap.SoapMessage;
-import org.apache.cxf.binding.soap.interceptor.AbstractSoapInterceptor;
-import org.apache.cxf.headers.Header;
+import org.apache.cxf.message.Message;
+import org.apache.cxf.phase.AbstractPhaseInterceptor;
 import org.apache.cxf.phase.Phase;
-import org.w3c.dom.Element;
 
-/** Test yardımcısı: gelen zarftaki correlationId header'ını yakalar. */
-class HeaderYakalayici extends AbstractSoapInterceptor {
+/**
+ * Test yardımcısı: SUNUCU tarafında gelen isteğin HTTP protokol header'larından
+ * {@link CorrelationId#HEADER_NAME} değerini yakalar.
+ *
+ * <p>Okuma biçimi {@code zeus-soap}'ın {@code CorrelationIdSoapInterceptors.Inbound}'u ile
+ * BİREBİR aynıdır ({@link Phase#RECEIVE} fazı + {@link Message#PROTOCOL_HEADERS} +
+ * büyük/küçük harf duyarsız arama); yani bu testin yeşil olması, gerçek bir Zeus SOAP
+ * sunucusunun bu istemciden gelen kimliği okuyabileceğinin kanıtıdır.
+ */
+class HeaderYakalayici extends AbstractPhaseInterceptor<Message> {
 
     private final AtomicReference<String> hedef;
 
     HeaderYakalayici(AtomicReference<String> hedef) {
-        super(Phase.PRE_PROTOCOL);
+        super(Phase.RECEIVE);
         this.hedef = hedef;
     }
 
     @Override
-    public void handleMessage(SoapMessage message) {
-        for (Header h : message.getHeaders()) {
-            if ("correlationId".equals(h.getName().getLocalPart())) {
-                hedef.set(((Element) h.getObject()).getTextContent());
+    @SuppressWarnings("unchecked")
+    public void handleMessage(Message message) {
+        Map<String, List<String>> headers =
+                (Map<String, List<String>>) message.get(Message.PROTOCOL_HEADERS);
+        if (headers == null) {
+            return;
+        }
+        for (Map.Entry<String, List<String>> e : headers.entrySet()) {
+            // HTTP header adları büyük/küçük harf duyarsızdır; taşıma katmanı adı
+            // normalize edebilir, bu yüzden equalsIgnoreCase ile aranır.
+            if (CorrelationId.HEADER_NAME.equalsIgnoreCase(e.getKey())
+                    && e.getValue() != null && !e.getValue().isEmpty()) {
+                hedef.set(e.getValue().get(0));
+                return;
             }
         }
     }
