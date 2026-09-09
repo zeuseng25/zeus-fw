@@ -26,9 +26,9 @@
         <!-- SOAP tipi descriptor şablonu (webservices dışlaması + com.zeus.soap dep). -->
         <zeus.descriptor.dir>descriptor-soap</zeus.descriptor.dir>
 
-        <!-- com.zeus.soap module SLOT'u — com.zeus slot politikasıyla aynı kurallar
-             (platform release başına sabitlenir; bkz. 10-versiyonlu-slot dokümanı). -->
-        <zeus.soap.module.slot>main</zeus.soap.module.slot>
+        <!-- com.zeus.soap module SLOT'u — artık zeus-parent'tan MİRAS ALINIR
+             (zeus.soap.module.slot), burada tanımlanmaz: SOAP tipi olmayan bir uygulama
+             (zeus-parent kullanan SOAP İSTEMCİSİ) da bu property'ye ihtiyaç duyar. -->
 
         <!-- SOAP TİPİ WAR dışlaması — BİRLEŞİM: com.zeus ∪ com.zeus.soap.
              zeus-parent'ınkini MİRAS ALMAK YETMEZ: o yalnız com.zeus'u kapsar, CXF yığını

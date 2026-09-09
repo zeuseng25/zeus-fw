@@ -32,6 +32,15 @@
              Detay: gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md -->
         <zeus.module.slot>main</zeus.module.slot>
 
+        <!-- SOAP yığınının (com.zeus.soap) slot'u. zeus.module.slot ile aynı kategoridedir:
+             PLATFORM release başına sabitlenir, uygulama pom'unda override EDİLMEZ.
+             Neden zeus-soap-parent'ta değil de burada: SOAP tipi olmayan bir uygulama da
+             com.zeus.soap'ı opt-in import edebilir (SOAP İSTEMCİSİ senaryosu — zeus-sms).
+             O uygulama zeus-parent'ı kullandığı için property burada tanımlı olmalıdır;
+             aksi halde descriptor'a literal ${zeus.soap.module.slot} girer ve WildFly o adda
+             slot bulamaz. Detay: gelistirmeler/20-zeus-sms.md -->
+        <zeus.soap.module.slot>main</zeus.soap.module.slot>
+
         <!-- Uygulama TİPİNİN descriptor şablon dizini (zeus-war-defaults içindeki dizin adı).
              Tip parent'ları override eder: descriptor-soap (zeus-soap-parent),
              descriptor-bff (zeus-bff-parent). Varsayılan: standart ince-WAR REST tipi. -->
