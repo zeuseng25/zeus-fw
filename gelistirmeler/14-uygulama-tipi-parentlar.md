@@ -132,7 +132,7 @@ tutulmalıydı.
 ### Base ayrımı neden (henüz) gerekli değil
 
 Mekanizma/politika ayrımı **zaten yapılmış** — property indirection'ı tam olarak bunun için
-var. `zeus-parent`'ta tipe özel olan yalnızca **4 property tanımı**:
+var. `zeus-parent`'ta tipe özel olan yalnızca **5 property tanımı**:
 
 | Property | Kime ait |
 |---|---|
@@ -149,7 +149,7 @@ var. `zeus-parent`'ta tipe özel olan yalnızca **4 property tanımı**:
 
 Geri kalan her şey bu property'leri **okur**, değerlerini varsaymaz
 (`<packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>`, profilde
-`${zeus.descriptor.dir}`). Base ayrımı bu ayrımı iyileştirmez; yalnızca 4 varsayılanı
+`${zeus.descriptor.dir}`). Base ayrımı bu ayrımı iyileştirmez; yalnızca 5 varsayılanı
 bir seviye aşağı taşır. Kazanç kavramsal, risk platform-geneldir (herkesin miras aldığı
 pom'da 250 satırlık taşıma + zincire yayınlanan bir artefakt daha).
 
@@ -200,8 +200,9 @@ uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bf
   hilesi kullanılmadı: CXF, Spring jar'larını kendi compile yolundan da çektiği için
   nearest-wins belirsiz olurdu). 23 jar: cxf-core/rt-*, wsdl4j, woodstox, xmlschema, neethi...
   module.xml, `com.zeus`'a (base-slot) ve `jakarta.xml.ws/soap/bind/...` server API'lerine bağımlıdır.
-- **Kapsam denetimi:** `verify-module-coverage.sh`, uygulamada `zeus.soap.module.slot`
-  property'sini görürse denetimi **com.zeus ∪ com.zeus.soap birleşimine** karşı yapar.
+- **Kapsam denetimi:** `verify-module-coverage.sh`, uygulamanın com.zeus.soap'ı **fiilen opt-in
+  edip etmediğine** bakıyor: descriptor'da module import'u veya dışlama listesinde CXF var mı.
+  Öyleyse denetimi **com.zeus ∪ com.zeus.soap birleşimine** karşı yapar.
 
 ## BFF hattı (Spring Cloud Gateway Server MVC)
 

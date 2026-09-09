@@ -155,7 +155,7 @@ if [[ -n "${WAR}" ]]; then
         echo "      CXF yığınını WAR'dan silip yerine hiçbir module koymayan bu yapılandırma" >&2
         echo "      WildFly'da NoClassDefFoundError üretir." >&2
         echo "      Çözüm: app pom'una da şunu ekleyin:" >&2
-        echo "        <zeus.descriptor.extra.modules>com.zeus.soap</zeus.descriptor.extra.modules>" >&2
+        echo "        <zeus.descriptor.extra.modules>&lt;module name=\"com.zeus.soap\" slot=\"\${zeus.soap.module.slot}\" services=\"import\" meta-inf=\"import\" annotations=\"true\"/&gt;</zeus.descriptor.extra.modules>" >&2
         echo "      (iki property BİRLİKTE yazılır — bkz. gelistirmeler/20-zeus-sms.md)" >&2
         exit 2
     fi
