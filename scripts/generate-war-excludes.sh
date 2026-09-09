@@ -120,9 +120,18 @@ list_soap() {
 MARK_BEGIN='ZEUS-WAR-EXCLUDES:BEGIN'
 MARK_END='ZEUS-WAR-EXCLUDES:END'
 
-# KAYNAK POM'u okur, marker bloğunun İÇİNDEKİ property satırını yeni regex ile değiştirir
-# ve sonucu HEDEF dosyaya yazar. KAYNAĞA DOKUNMAZ — bu ayrım `--check`'in gerçekten
-# salt-okunur olmasını sağlar (eskiden `--check` POM'ları yazıp EXIT trap'inde geri
+# İKİNCİ marker çifti — YALNIZ zeus-parent/pom.xml'de. Opt-in com.zeus.soap importu yapan
+# STANDART tip bir uygulama (zeus-sms istemcisi), com.zeus'a ek olarak com.zeus.soap'ın da
+# WAR'a girmemesini istiyorsa bu property'yi (zeus.war.packaging-excludes.with-soap) kendi
+# pom'unda zeus.war.packaging-excludes'un YERİNE geçirir (task-8-brief.md). Değeri list_soap()
+# ile birebir aynıdır (zeus-soap-parent'a yazılanın kopyası) — SOAP tipi uygulamalar zaten
+# zeus-soap-parent'ın MARK_BEGIN/MARK_END bloğunu kullanır, bu ikinci blok ona DOKUNMAZ.
+MARK2_BEGIN='ZEUS-WAR-EXCLUDES-SOAP:BEGIN'
+MARK2_END='ZEUS-WAR-EXCLUDES-SOAP:END'
+
+# KAYNAK dosyayı okur, verilen marker bloğunun İÇİNDEKİ property satırını yeni regex ile
+# değiştirir ve sonucu HEDEF dosyaya yazar. KAYNAĞA DOKUNMAZ — bu ayrım `--check`'in
+# gerçekten salt-okunur olmasını sağlar (eskiden `--check` POM'ları yazıp EXIT trap'inde geri
 # yüklüyordu; SIGKILL / CI job timeout trap'i çalıştırmaz ve çalışma ağacında YARIM
 # YAZILMIŞ bir parent POM bırakabilirdi — final review, Important 2).
 #
@@ -131,20 +140,26 @@ MARK_END='ZEUS-WAR-EXCLUDES:END'
 # kaybolduğunda `--check` "✅ uyumlu" diyordu. Tüm gerekçesi "drift yapısal olarak
 # imkânsız" olan bir mekanizmada drift detektörünün kendi hata biçimi SESSİZ OLAMAZ.
 # (Dosyanın hiç olmaması atlama olarak kalır — opsiyonel tip parent'ı senaryosu.)
-render_pom() {  # $1=kaynak pom  $2=regex  $3=hedef dosya
-    local pom="$1" regex="$2" out="$3"
+#
+# $1=kaynak dosya  $2=property adı  $3=marker-begin  $4=marker-end  $5=regex  $6=hedef dosya
+# KAYNAK == HEDEF DEĞİL: zeus-parent iki bloğu ZİNCİRLEME günceller — birinci çağrının
+# ÇIKTISI ikinci çağrının KAYNAĞI olur (bkz. --write/--check'teki iki aşamalı kullanım),
+# böylece aynı POM'daki iki bağımsız marker bloğu birbirini EZMEDEN güncellenir.
+render_pom() {
+    local pom="$1" prop="$2" mark_begin="$3" mark_end="$4" regex="$5" out="$6"
     [[ -f "${pom}" ]] || { echo ">> atlandı (yok): ${pom}"; return 0; }
-    if ! grep -q "${MARK_BEGIN}" "${pom}"; then
-        echo "HATA: '${MARK_BEGIN}' marker'ı bulunamadı: ${pom}" >&2
+    if ! grep -q "${mark_begin}" "${pom}"; then
+        echo "HATA: '${mark_begin}' marker'ı bulunamadı: ${pom}" >&2
         echo "      Üretilen blok bir merge / elle düzenleme ile kaybolmuş olabilir." >&2
         echo "      Marker olmadan liste ÜRETİLEMEZ ve POM sessizce eski listede donar." >&2
-        echo "      Çözüm: POM'a ZEUS-WAR-EXCLUDES:BEGIN/END yorum çiftini geri koyun." >&2
+        echo "      Çözüm: POM'a ${mark_begin}/${mark_end} yorum çiftini geri koyun." >&2
         return 1
     fi
-    MARK_BEGIN="${MARK_BEGIN}" MARK_END="${MARK_END}" REGEX="${regex}" OUT="${out}" \
+    PROP="${prop}" MARK_BEGIN="${mark_begin}" MARK_END="${mark_end}" REGEX="${regex}" OUT="${out}" \
         python3 - "${pom}" <<'PY'
 import io,os,sys
 pom = sys.argv[1]
+prop = os.environ['PROP']
 rx = os.environ['REGEX']
 mb = os.environ['MARK_BEGIN']
 me = os.environ['MARK_END']
@@ -166,7 +181,7 @@ end_line_end = s.find('\n', epos)
 end_line_end = end_line_end + 1 if end_line_end != -1 else len(s)
 
 indent = ' ' * 8
-new_middle = indent + "<zeus.war.packaging-excludes>" + rx + "</zeus.war.packaging-excludes>\n"
+new_middle = indent + "<" + prop + ">" + rx + "</" + prop + ">\n"
 
 s2 = s[:begin_line_end] + new_middle + s[end_line_start:end_line_end] + s[end_line_end:]
 io.open(out, 'w', encoding='utf-8').write(s2)
@@ -210,12 +225,17 @@ case "${1:---check}" in
         regex_std="$(list_standard)" || { echo "HATA: standard listesi üretilemedi — --write İPTAL edildi." >&2; exit 1; }
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --write İPTAL edildi." >&2; exit 1; }
         tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
-        # ÖNCE İKİSİNİ DE tmp'ye render et, SONRA yerine koy: aradaki bir hata (ör. marker
+        # ÖNCE HEPSİNİ tmp'ye render et, SONRA yerine koy: aradaki bir hata (ör. marker
         # kaybı) hiçbir POM'a dokunmadan durur. Eskiden iki yazma arasındaki hata
         # zeus-parent'ı YENİ, zeus-soap-parent'ı ESKİ listede bırakıyordu (final review,
-        # Important 2 — dosyalar arası atomiklik).
-        render_pom "${STD_POM}"  "${regex_std}"  "${tmp}/std.pom"  || exit 1
-        render_pom "${SOAP_POM}" "${regex_soap}" "${tmp}/soap.pom" || exit 1
+        # Important 2 — dosyalar arası atomiklik). zeus-parent'ta İKİ BAĞIMSIZ marker bloğu
+        # var; birinci aşamanın çıktısı ikinci aşamanın kaynağı olarak ZİNCİRLENİR.
+        render_pom "${STD_POM}" "zeus.war.packaging-excludes" \
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" || exit 1
+        render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
+            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" || exit 1
+        render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" || exit 1
         install_pom "${tmp}/std.pom"  "${STD_POM}"
         install_pom "${tmp}/soap.pom" "${SOAP_POM}"
         ;;
@@ -225,8 +245,12 @@ case "${1:---check}" in
         tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' EXIT
         regex_std="$(list_standard)" || { echo "HATA: standard listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
-        render_pom "${STD_POM}"  "${regex_std}"  "${tmp}/std.pom"  >/dev/null || exit 1
-        render_pom "${SOAP_POM}" "${regex_soap}" "${tmp}/soap.pom" >/dev/null || exit 1
+        render_pom "${STD_POM}" "zeus.war.packaging-excludes" \
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" >/dev/null || exit 1
+        render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
+            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" >/dev/null || exit 1
+        render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" >/dev/null || exit 1
         rc=0
         if [[ -f "${tmp}/std.pom" ]]; then
             diff -q "${STD_POM}" "${tmp}/std.pom" >/dev/null || rc=1
