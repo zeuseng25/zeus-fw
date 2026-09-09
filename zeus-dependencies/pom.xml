@@ -217,6 +217,11 @@
             </dependency>
             <dependency>
                 <groupId>com.zeus</groupId>
+                <artifactId>zeus-sms</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
                 <artifactId>zeus-bff-starter</artifactId>
                 <version>${revision}</version>
             </dependency>

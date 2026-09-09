@@ -67,6 +67,7 @@
         <module>zeus-ai</module>
         <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
         <module>zeus-soap</module>
+        <module>zeus-sms</module>
         <module>zeus-bff-starter</module>
         <module>zeus-bff-login</module>
         <!-- WAR uygulamalarına build'de enjekte edilen varsayılan deployment dosyası şablonları. -->

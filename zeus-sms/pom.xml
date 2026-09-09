@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent</relativePath>
+    </parent>
+
+    <artifactId>zeus-sms</artifactId>
+    <name>Zeus SMS (CXF SOAP istemcisi)</name>
+    <description>
+        SMS gönderimi için SOAP İSTEMCİSİ. CXF yığını bu jar'da DEĞİL, paylaşımlı
+        com.zeus.soap module'ündedir; kullanan uygulama descriptor'ına
+        zeus.descriptor.extra.modules ile o module'ü opt-in import eder.
+        ÖNEMLİ: bu modül zeus-wildfly-module'e EKLENMEZ — eklenirse CXF kapanışı
+        com.zeus'a sızar. Gerekçe: gelistirmeler/20-zeus-sms.md
+    </description>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-base</artifactId>
+        </dependency>
+
+        <!-- CXF istemci yüzeyi. Sunucu tarafı starter'ı (cxf-spring-boot-starter-jaxws)
+             BİLEREK kullanılmaz: istemcinin endpoint yayınlama yeteneğine ihtiyacı yok.
+             Bu üç artefakt da com.zeus.soap module'ünde MEVCUT. Sürümler cxf-bom'dan. -->
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-frontend-jaxws</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-transports-http</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-bindings-soap</artifactId>
+        </dependency>
+
+        <!-- @WebService/@WebParam anotasyonları. WildFly'da jakarta.xml.ws.api
+             module'ünden gelir (ölçüldü: jakarta.jws.* sınıfları o jar'ın içinde),
+             bu yüzden provided. -->
+        <dependency>
+            <groupId>jakarta.xml.ws</groupId>
+            <artifactId>jakarta.xml.ws-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- Test: GERÇEK bir HTTP endpoint'i ayağa kaldırmak için (mock değil).
+             Yalnız test scope — WAR'a ve module'e girmez. -->
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-rt-transports-http-jetty</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
