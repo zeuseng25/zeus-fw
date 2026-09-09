@@ -60,7 +60,7 @@ Bu ikinci sonuç, listenin **runtime'da enjekte edilemeyeceğini**, dolayısıyl
 
 ## Hedef tasarım (B′)
 
-### 1) Kural tersine döner — iki üretilmiş liste
+### 1) Kural tersine döner — ÜÇ üretilmiş liste
 
 `zeus-parent/pom.xml` ve `zeus-soap-parent/pom.xml`, property'yi üretilmiş bir denylist
 olarak taşır:
@@ -76,6 +76,27 @@ olarak taşır:
 | soap | `zeus-soap-parent` | `com.zeus` ∪ `com.zeus.soap` (157 + 23) | `zeus-*` + hiçbir module'de olmayanlar |
 | bff | `zeus-bff-parent` | — (boş; fat WAR) | her şey |
 | standalone | `zeus-standalone-parent` | — (boş; fat WAR) | her şey |
+
+**Üçüncü liste — `zeus.war.packaging-excludes.with-soap`** (Task 8, `gelistirmeler/20-zeus-sms.md`):
+`zeus-parent/pom.xml`'e ikinci bir ÜRETİLMİŞ property olarak eklendi. Değeri `soap` listesiyle
+(`com.zeus ∪ com.zeus.soap`) **birebir aynıdır** — ayrı bir hesaplama değil, `list_soap()`'un
+`zeus-parent`'a yazılmış ikinci bir kopyasıdır (`scripts/generate-war-excludes.sh`'ta ayrı bir
+marker çifti: `ZEUS-WAR-EXCLUDES-SOAP:BEGIN/END`). Amacı: **standart tip** bir uygulama
+`zeus.descriptor.extra.modules` ile `com.zeus.soap`'ı opt-in import ederken (örn. `zeus-sms`
+kullanan her uygulama), varsayılan `zeus.war.packaging-excludes` (yalnız `com.zeus`'u atan
+standard liste) CXF'in kapanışından habersiz kalır ve CXF jar'ları WAR'a sızar. Opt-in eden
+uygulama kendi `pom.xml`'inde `zeus.war.packaging-excludes`'ı bu üçüncü listeye **yönlendirir**:
+
+```xml
+<zeus.war.packaging-excludes>${zeus.war.packaging-excludes.with-soap}</zeus.war.packaging-excludes>
+```
+
+`zeus-soap-parent`'ın kendi listesinden **farklı bir mekanizma**: SOAP tipi uygulamalar zaten
+`zeus-soap-parent`'ın kendi `MARK_BEGIN/MARK_END` bloğunu (property adı aynı,
+`zeus.war.packaging-excludes`) miras alır ve bu üçüncü listeye hiç ihtiyaç duymaz. Üçüncü liste
+yalnız **standart parent'ta kalıp opt-in eden** uygulamalar içindir — o yüzden `zeus-parent`'a
+(soap parent'a değil) yazılır. Ölçülen sonuç ve iki-property tutarlılık guard'ı için
+`gelistirmeler/20-zeus-sms.md`'ye bakın.
 
 **SOAP tipi ayrı liste ZORUNLU.** `zeus-soap-parent` bu property'yi bugün override
 etmiyor, `zeus-parent`'tan miras alıyor. Allowlist'te bu zararsızdı (zaten her şey

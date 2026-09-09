@@ -49,17 +49,21 @@ FIXED_TAIL='ojdbc[0-9]+|orai18n|ucp[0-9]+|jakarta\.[a-z.]+-api|lombok|spring-boo
 # install-zeus-module.sh module'ü ÜRETİRKEN aynı kaynağı (dependency, includeScope=runtime)
 # kullanır — liste ile module'ün aynı kümeyi görmesi buna dayanır.
 closure_artifact_ids() {
-    local module_dir="$1" out
+    local module_dir="$1" out err
     out="$(mktemp)"
-    # NOT: yalnız stdout /dev/null'a gidiyor — stderr AKIYOR. Eskiden `2>&1` ile ikisi
-    # birden yutuluyordu; `mvn dependency:list` başarısız olduğunda teşhissiz kalıyordu
-    # (fix round 1, Important 1). Başarısızlığı da AÇIKÇA kontrol ediyoruz — subshell'in
-    # dönüş kodu, fonksiyonun geri kalanındaki sed/grep/awk boru hattına gizlenmesin.
+    err="$(mktemp)"
+    # stdout VE stderr AYRI yakalanır; stderr YALNIZ hata dallarında basılır — eskiden
+    # yalnız stdout susturuluyordu, stderr serbestçe akıyordu ve yeşil `--check` koşusunda
+    # bile mvn/JVM gürültüsü (ör. sun.misc.Unsafe uyarıları) çıktıyı kirletiyordu. Desen
+    # scripts/test-com-zeus-cxf-sizintisi.sh:19-34 ile aynı. Başarısızlığı AÇIKÇA kontrol
+    # ediyoruz — subshell'in dönüş kodu, fonksiyonun geri kalanındaki sed/grep/awk boru
+    # hattına gizlenmesin (fix round 1, Important 1).
     if ! ( cd "${FW_ROOT}/${module_dir}" \
       && ${MVN} -q -B -Dstyle.color=never dependency:list \
-           -DincludeScope=runtime -DoutputFile="${out}" ) >/dev/null; then
+           -DincludeScope=runtime -DoutputFile="${out}" ) >/dev/null 2>"${err}"; then
         echo "HATA: '${module_dir}' için 'mvn dependency:list' başarısız oldu (yukarıdaki mvn çıktısına bakın)." >&2
-        rm -f "${out}"
+        cat "${err}" >&2
+        rm -f "${out}" "${err}"
         return 1
     fi
     # format: groupId:artifactId:jar[:classifier]:version:scope
@@ -68,7 +72,7 @@ closure_artifact_ids() {
       | awk -F: '{print $2}' \
       | grep -Ev '^zeus-[a-z0-9-]+$' \
       | sort -u
-    rm -f "${out}"
+    rm -f "${out}" "${err}"
 }
 
 # artifactId listesini (stdin) alır; boş/şüpheli derecede küçükse HATA basıp non-zero

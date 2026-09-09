@@ -68,12 +68,33 @@ SOAP_MODULE_DIR=""
 # böyle bir WAR WildFly'da com.zeus'u göremez ve kriptik açılış hatası verir.
 WAR="$(ls -t "${APP_DIR}"/target/*.war 2>/dev/null | head -n1 || true)"
 if [[ -n "${WAR}" ]]; then
-    if ! unzip -p "${WAR}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null | grep -q 'name="com.zeus"'; then
+    DESCRIPTOR_XML="$(unzip -p "${WAR}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null || true)"
+    if ! grep -q 'name="com.zeus"' <<< "${DESCRIPTOR_XML}"; then
         echo "HATA: WAR'da üretilmiş jboss-deployment-structure.xml yok: $(basename "${WAR}")" >&2
         echo "      zeus-generated-descriptor profili devreye girmemiş görünüyor." >&2
         echo "      Kontrol: app'te src/main/webapp dizini var mı? (boşsa .gitkeep ile oluşturun" >&2
         echo "      — profil bu dizinin varlığıyla aktifleşir) Sonra yeniden build edin." >&2
         exit 2
+    fi
+
+    # İKİ-PROPERTY TUTARLILIK KONTROLÜ (gelistirmeler/20-zeus-sms.md): standart tip bir
+    # uygulama com.zeus.soap'ı opt-in ederken İKİ property yazmak zorundadır — biri
+    # module'ü descriptor'a alır (zeus.descriptor.extra.modules), diğeri o module'ün
+    # jar'larını WAR'dan dışlar (zeus.war.packaging-excludes → …with-soap). Bu ikisinin
+    # BİRLİKTE yazılması uygulamanın sorumluluğudur; script'ler arasında yapısal bir bağ
+    # yoktur. Yalnız birincisi yazılırsa CXF hem com.zeus.soap module'ünden gelir hem
+    # WAR'da WEB-INF/lib'te taşınır — 08-wildfly-module-dagitim.md'nin ikinci-kopya kuralının
+    # ClassCastException/LinkageError ürettiğini söylediği tam senaryo. WAR yoksa bu kontrol
+    # de atlanır (üstteki descriptor kontrolüyle aynı desen).
+    if grep -q 'name="com.zeus.soap"' <<< "${DESCRIPTOR_XML}"; then
+        CXF_JARS="$(unzip -l "${WAR}" 2>/dev/null | awk '{print $4}' | grep -E '^WEB-INF/lib/cxf-' || true)"
+        if [[ -n "${CXF_JARS}" ]]; then
+            echo "HATA: descriptor com.zeus.soap'ı import ediyor AMA WAR'ın WEB-INF/lib'inde CXF jar'ı VAR — çift kopya:" >&2
+            sed 's/^/      /' <<< "${CXF_JARS}" >&2
+            echo "      CXF hem com.zeus.soap module'ünden hem WAR'dan yüklenir; ClassCastException/LinkageError riski." >&2
+            echo "      Çözüm: zeus.war.packaging-excludes'u \${zeus.war.packaging-excludes.with-soap}'a yönlendirin." >&2
+            exit 2
+        fi
     fi
 fi
 
