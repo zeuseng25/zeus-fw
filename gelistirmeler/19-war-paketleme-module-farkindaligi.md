@@ -106,6 +106,10 @@ Kapanış çözümü `install-zeus-module.sh`'ın module'ü üretirken kullandı
 aynısıdır**; dışlama kümesi de aynı olmalıdır (`zeus-*`, `jakarta.*-api`, `lombok`,
 `ojdbc*`/`orai18n`/`ucp*`) — yani "module'de fiilen ne varsa liste odur".
 
+**Argümansız çalıştırmanın varsayılanı `--check`'tir** (salt-okunur). Yazma niyeti her zaman
+`--write` ile açıkça belirtilir; modlarının çoğu salt-okunur olan bir script'in kazara POM
+yazması istenmez. `install-zeus-module.sh` zaten açıkça `--write` çağırır.
+
 **Drift'i imkânsız kılan bağlantı:** `install-zeus-module.sh` kendi sonunda bu üreticiyi
 çağırır. Module ve liste aynı komuttan, aynı kapanıştan üretilir; ayrı bir senkron
 denetimi gerekmez. Üretici tek başına da çalıştırılabilir (`--check` ile yalnız fark

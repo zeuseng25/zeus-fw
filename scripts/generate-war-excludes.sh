@@ -14,6 +14,7 @@
 #   ./scripts/generate-war-excludes.sh --print fixed-tail # sabit kuyruk (module dışı küme)
 #   ./scripts/generate-war-excludes.sh --write            # iki parent POM'u güncelle
 #   ./scripts/generate-war-excludes.sh --check            # POM'lar güncel mi (CI, SALT-OKUNUR)
+#   ./scripts/generate-war-excludes.sh                    # = --check (argümansız varsayılan)
 #
 set -euo pipefail
 
@@ -185,7 +186,10 @@ install_pom() {  # $1=render edilmiş dosya  $2=hedef pom
 STD_POM="${FW_ROOT}/zeus-parent/pom.xml"
 SOAP_POM="${FW_ROOT}/zeus-soap-parent/pom.xml"
 
-case "${1:---write}" in
+# Argümansız çalıştırmanın varsayılanı --check'tir (SALT-OKUNUR). Yazma niyeti her zaman
+# AÇIKÇA belirtilir: modları çoğunlukla salt-okunur olan bir script'in kazara POM yazması
+# istenmez. install-zeus-module.sh zaten `--write` ile açıkça çağırır.
+case "${1:---check}" in
     --print)
         case "${2:-standard}" in
             standard)   list_standard ;;
@@ -237,5 +241,5 @@ case "${1:---write}" in
         fi
         exit "${rc}"
         ;;
-    *) echo "kullanım: $0 [--print standard|soap|fixed-tail] [--write] [--check]" >&2; exit 2 ;;
+    *) echo "kullanım: $0 [--check (varsayılan)] [--write] [--print standard|soap|fixed-tail]" >&2; exit 2 ;;
 esac
