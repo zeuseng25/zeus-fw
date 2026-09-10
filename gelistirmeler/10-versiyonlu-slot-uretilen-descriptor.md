@@ -229,6 +229,36 @@ slot gösterirse çift sınıf / LinkageError riski olduğundan** sıra önemlid
 2. Tek bakım penceresinde `<global-modules>`'tan `com.zeus` çıkarılır + reload.
 3. Slot mekanizması kullanılabilir; bundan sonrası restart'sız.
 
+## ⚠️ DOĞRULANMAMIŞ: versiyonlu slot yolu hiç çalıştırılmadı
+
+**Bugüne kadar yapılan tüm kurulum, deploy ve doğrulama `main` slot'u üzerinde koştu.**
+`--slot <ad>` / `--base-slot <ad>` dalları bir kez bile yürütülmedi. Bu, mekanizmanın
+yanlış olduğu anlamına gelmez — hiç sınanmadığı anlamına gelir. Son durum (2026-09-10):
+
+| Yol | Durum |
+|---|---|
+| `install-zeus-module.sh` (varsayılan, `main`) | ✅ defalarca koştu |
+| `install-zeus-module.sh --slot 1.1.0` | ❌ hiç koşmadı |
+| `install-zeus-module.sh --module soap --base-slot 1.1.0` | ❌ hiç koşmadı |
+| Versiyonlu slot'a bağlanan bir uygulamanın deploy'u | ❌ hiç koşmadı |
+
+**İlk versiyonlu slot kurulumunda özellikle sınanacaklar:**
+
+1. **`module.xml`'deki sözdizimi.** `com.zeus.soap` üretilirken versiyonlu dal
+   `<module name="com.zeus:1.1.0"/>` yazıyor (`scripts/install-zeus-module.sh:181-184`);
+   klasik biçim `<module name="com.zeus" slot="1.1.0"/>`. Bu dal hiç çalışmadığı için
+   JBoss Modules'ın onu çözdüğü doğrulanmadı. **İlk sınanacak şey budur.**
+2. **Descriptor ↔ slot uyumu.** Uygulamanın `zeus.module.slot`'u ile sunucuda kurulu
+   slot'un eşleştiği; `verify-module-coverage.sh`'ın slot-kurulu kontrolünün versiyonlu
+   adla da çalıştığı.
+3. **Üretilen dışlama listeleri slot'tan habersizdir.** Liste her zaman çalışma ağacındaki
+   `zeus-wildfly-module` kapanışından üretilir; uygulamanın hedeflediği slot'la ilişkisi
+   yoktur. `main` dışında bir slot hedeflenirken listenin o slot'un içeriğiyle uyumlu
+   olduğunu `verify-module-coverage.sh`'ın ters kapsam kontrolü denetler — ama bu da
+   yalnız `main` üzerinde sınandı.
+
+Bu not, mekanizma gerçekten bir versiyonlu slot'la çalıştırılıp doğrulanana kadar kalır.
+
 ## Doğrulananlar (bu geliştirmede uçtan uca test edildi)
 
 - zeus-fw build: profil framework'ün jar modüllerinde aktifleşmiyor (döngü yok).

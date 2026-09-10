@@ -97,10 +97,10 @@ Slot'suz görünmesinin sebebi varsayılanın `main` olması. Yani tasarımda ek
 verilmeden kurulursa, soap module'ü `main`'e bakar. Bu bir kod düzeltmesi değil, runbook
 disiplinidir → `17-module-yenileme-runbook.md`'ye adım olarak yazılır.
 
-> Ayrıca doğrulanması gereken bir ayrıntı (bu işin kapsamı dışında): versiyonlu dalda üretilen
-> `name="com.zeus:1.1.0"` sözdizimi, klasik `name="com.zeus" slot="1.1.0"` biçiminin yerine
-> geçiyor. Bugün her yerde slot `main` olduğu için bu dal hiç çalışmadı; ilk versiyonlu slot
-> kurulumunda sınanmalıdır.
+> **Versiyonlu slot yolu hiç çalıştırılmadı.** Buradaki `--base-slot` mekanizması kaynakta
+> mevcut ama bir kez bile yürütülmedi; üretilen `name="com.zeus:1.1.0"` sözdiziminin JBoss
+> Modules tarafından çözüldüğü doğrulanmadı. Kapsam ve ilk sınanacaklar listesi:
+> `10-versiyonlu-slot-uretilen-descriptor.md` → "DOĞRULANMAMIŞ: versiyonlu slot yolu".
 
 ## Bileşenler
 
