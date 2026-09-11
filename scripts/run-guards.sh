@@ -48,6 +48,7 @@ done
 #                app-std       → ../spring-wildfly-arch gerekir
 #                app-soap      → ../zeus-sample-soap gerekir
 #                app-both      → ikisi de gerekir
+#                wf            → yalnız kurulu WildFly gerekir (kardeş repo GEREKMEZ)
 #                app-std+wf    → ../spring-wildfly-arch VE kurulu WildFly gerekir
 #
 # SIRA KASITLIDIR: önce ucuz ve kendi başına yeten guard'lar (hızlı kırmızı), sonra
@@ -58,6 +59,7 @@ SUITE=(
   "fw|${FW_ROOT}/scripts/test-com-zeus-cxf-sozlesmesi.sh|com.zeus sözleşmesinde CXF var mı, zeus-* jar'ı sızmış mı"
   "fw|${FW_ROOT}/scripts/test-com-zeus-jakarta-api-kapsama.sh|CXF'in gerektirdiği jakarta.*-api'ler module.xml'in base dalında export ediliyor mu"
   "fw|${FW_ROOT}/scripts/test-generator-wiring.sh|Üreteç doğru çağrılıyor + listeler güncel mi"
+  "wf|${FW_ROOT}/scripts/test-module-liste-esitligi.sh|Kurulu module ↔ üretilen dışlama listesi iki yönlü eşit mi"
   "app-both|${FW_ROOT}/scripts/test-soap-slot-property.sh|zeus.soap.module.slot her tipte çözülüyor mu"
   "app-std|${FW_ROOT}/scripts/test-war-packaging.sh|Standart tip WAR içeriği (uçtan uca build)"
   "app-soap|${FW_ROOT}/scripts/test-war-packaging-soap.sh|SOAP tipi WAR içeriği (uçtan uca build)"
@@ -78,6 +80,9 @@ precondition_met() {  # $1 = gereksinim etiketi
         app-both)
             [[ -d "${APP_STD}" && -d "${APP_SOAP}" ]] && return 0
             echo "kardeş repo(lar) yok: ${APP_STD} ve/veya ${APP_SOAP}"; return 1 ;;
+        wf)
+            [[ -d "${WILDFLY_HOME}/modules" ]] && return 0
+            echo "kurulu WildFly yok: ${WILDFLY_HOME} (WILDFLY_HOME ile gösterilebilir)"; return 1 ;;
         app-std+wf)
             if [[ ! -d "${APP_STD}" ]]; then echo "kardeş repo yok: ${APP_STD}"; return 1; fi
             [[ -d "${WILDFLY_HOME}/modules" ]] && return 0

@@ -132,12 +132,34 @@ if [[ "${MODULE_KIND}" == "soap" ]]; then
     fi
 fi
 
+# GLOB GÜVENLİĞİ (nullglob) — KÜME FARKI BOŞ ÇIKABİLDİĞİ İÇİN ŞART.
+# Bash varsayılanında EŞLEŞMEYEN bir glob KENDİ METNİYLE genişler: boş bir dizinde
+# `for jar in "${MODULE_DIR}"/*.jar` tek turda `.../*.jar` LİTERAL'ini verir. CXF temel
+# com.zeus kapanışına taşındıktan sonra com.zeus.soap'ın küme farkı ∅'dir (0 jar) ve bu
+# tam olarak gerçekleşti: module.xml'e SAHTE bir `<resource-root path="*.jar"/>` satırı
+# yazıldı. WildFly böyle bir module'ü yüklemez ("resource root ... not found") → SOAP
+# tipi uygulamaların HEPSİ deploy'da düşerdi. nullglob eşleşmeyen glob'u SIFIR öğeye
+# genişletir; aşağıdaki üç döngü (kopyalama, jandex, resource-root) artık boş dizini
+# doğru şekilde "hiç tur" olarak işler.
+shopt -s nullglob
+
 # --- 2) Module dizinini sıfırla ve jar'ları kopyala ---
 rm -rf "${MODULE_DIR}"
 mkdir -p "${MODULE_DIR}"
 copied=0
 skipped_base=0
-for jar in "${TMP}/lib"/*.jar; do
+# HAM kapanış boşsa bu bir ÖLÇÜM HATASIDIR: mvn "başarılı" döndü ama hiçbir şey
+# kopyalamadı. nullglob açıkken bu durum sessizce 0 jar'lık bir module üretirdi; burada
+# AÇIKÇA duruyoruz. (soap'ta KÜME FARKI sonucu 0 jar MEŞRUDUR — denetlenen fark değil,
+# dependency:copy-dependencies'in ürettiği HAM kapanıştır.)
+src_jars=( "${TMP}/lib"/*.jar )
+if (( ${#src_jars[@]} == 0 )); then
+    echo "HATA: '${MODULE_BUILD_DIR}' runtime kapanışı BOŞ — ${TMP}/lib altında hiç jar yok." >&2
+    echo "      'mvn dependency:copy-dependencies' başarı döndürdü ama hiçbir jar kopyalamadı;" >&2
+    echo "      bu bir ÖLÇÜM HATASIDIR — module ÜRETİLMEDİ, sunucuya dokunulmadı." >&2
+    exit 1
+fi
+for jar in "${src_jars[@]}"; do
     base="$(basename "${jar}")"
     if [[ "${base}" =~ ${EXCLUDE_REGEX} ]]; then
         continue
@@ -183,6 +205,49 @@ for jar in "${MODULE_DIR}"/*.jar; do
 done
 echo ">> Jandex index tamam"
 
+# --- 4b) JAR'SIZ MODULE: BOŞ AMA GEÇERLİ BİR ANNOTATION INDEX ŞART ---
+#
+# WildFly bir static module'ün annotation index'ini İKİ yoldan kurar
+# (org.jboss.as.server.deployment.annotation.AnnotationIndexSupport#indexModule):
+#   1) HIZLI YOL — ModuleIndexBuilder.buildCompositeIndex: module classloader'ından
+#      META-INF/jandex.idx kaynaklarını okur (yukarıda her jar'a gömdüğümüz index'ler).
+#   2) GERİ DÜŞÜŞ — HİÇ jandex.idx bulunamazsa calculateModuleIndex: module'ün
+#      ERİŞEBİLDİĞİ TÜM .class kaynaklarını (bağımlı olduğu com.zeus'un jar'ları DAHİL)
+#      TEK bir Jandex Indexer'da HAM olarak indexler.
+#
+# CXF, com.zeus sözleşmesine taşındıktan sonra com.zeus.soap KÜME FARKIYLA BOŞALDI
+# (0 jar). Jar yoksa gömülecek index de yok → module'de HİÇ jandex.idx bulunmuyor →
+# WildFly (2) yoluna düşüyor ve com.zeus'un 180 jar'ının tamamını ham indexliyor.
+# Varsayılan 512m heap'te bu OutOfMemoryError ile patlıyor ve SOAP tipi HER deploy
+# PARSE fazında düşüyor (ampirik olarak doğrulandı — bkz. task-3 raporu):
+#   Failed to process phase PARSE ... Caused by: java.lang.OutOfMemoryError: Java heap space
+#     at org.jboss.jandex.Indexer.index(...)
+#     at ...AnnotationIndexSupport.calculateModuleIndex(AnnotationIndexSupport.java:124)
+#
+# ÇÖZÜM: jar'sız module'e BOŞ ama geçerli bir jandex index'i koyup module.xml'de dizin
+# tipi bir resource-root ile tanıt. Böylece hızlı yol (1) devreye girer ve module'ün
+# GERÇEK içeriği (hiçbir sınıf) doğru biçimde ifade edilmiş olur. Bir JAR kullanılmaz:
+# module dizinindeki her jar WAR dışlama listesinde de karşılığı olması gereken bir
+# artifact'tır (bkz. scripts/test-module-liste-esitligi.sh) — sentetik bir jar o
+# eşitliği bozardı.
+EMPTY_INDEX_DIR="empty-index"
+if (( copied == 0 )); then
+    echo ">> Module jar'sız (küme farkı ∅) — boş annotation index üretiliyor (${EMPTY_INDEX_DIR}/META-INF/jandex.idx)..."
+    mkdir -p "${MODULE_DIR}/${EMPTY_INDEX_DIR}/META-INF"
+    mkdir -p "${TMP}/empty-src"
+    if ! java -jar "${JANDEX_JAR}" -o "${MODULE_DIR}/${EMPTY_INDEX_DIR}/META-INF/jandex.idx" \
+            "${TMP}/empty-src" >/dev/null 2>&1; then
+        echo "HATA: jar'sız ${MODULE_NAME} module'ü için BOŞ jandex index üretilemedi." >&2
+        echo "      Bu index olmadan WildFly module'ün annotation index'ini ham tarayarak" >&2
+        echo "      kurmaya çalışır (bağımlı com.zeus jar'ları dahil) ve deploy OOM ile düşer." >&2
+        exit 1
+    fi
+    if [[ ! -s "${MODULE_DIR}/${EMPTY_INDEX_DIR}/META-INF/jandex.idx" ]]; then
+        echo "HATA: boş jandex index üretildi ama dosya boş/yok: ${MODULE_DIR}/${EMPTY_INDEX_DIR}/META-INF/jandex.idx" >&2
+        exit 1
+    fi
+fi
+
 # --- 5) module.xml üret ---
 {
     echo '<?xml version="1.0" encoding="UTF-8"?>'
@@ -198,6 +263,11 @@ echo ">> Jandex index tamam"
     for jar in "${MODULE_DIR}"/*.jar; do
         echo "        <resource-root path=\"$(basename "${jar}")\"/>"
     done
+    # Jar'sız module: yukarıda (4b) üretilen boş annotation index'i DİZİN tipi bir
+    # resource-root olarak tanıt — WildFly'ın hızlı index yolu bunu bulmak zorunda.
+    if (( copied == 0 )); then
+        echo "        <resource-root path=\"${EMPTY_INDEX_DIR}\"/>"
+    fi
     echo '    </resources>'
     echo '    <dependencies>'
     echo '        <module name="java.se"/>'
