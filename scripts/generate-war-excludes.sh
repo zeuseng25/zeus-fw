@@ -25,8 +25,10 @@ MVN="${MVN:-mvn}"
 
 # İKİ KATMANLI AKIL SAĞLIĞI TABANI.
 #
-# 1) MUTLAK TABAN — "neredeyse boş" listeyi yakalar. Gerçek listeler 168 (standard) ve
-#    193 (soap) artifactId içeriyor; eski taban 20 idi ve bu, listenin %88'ini kaybettiği
+# 1) MUTLAK TABAN — "neredeyse boş" listeyi yakalar. Gerçek listeler 193 (standard) ve
+#    193 (soap) artifactId içeriyor (CXF com.zeus'a taşındığından beri ikisi AYNI KÜMEYE
+#    denk geliyor — bkz. test-generate-war-excludes.sh'teki "soap \ standard = ∅" denetimi);
+#    eski taban 20 idi ve bu, listenin %88'ini kaybettiği
 #    bir ölçüm hatasını bile YEŞİL geçirirdi. Asıl tehlikeli yön KISALMIŞ listedir: daha az
 #    dışlama = module'ün ZATEN verdiği jar'lar WAR'a girer = 08-wildfly-module-dagitim.md'nin
 #    ikinci-kopya LinkageError'ı. Taban orantılı hale getirildi (final review, M1).
@@ -67,7 +69,7 @@ closure_artifact_ids() {
     # stdout VE stderr AYRI yakalanır; stderr YALNIZ hata dallarında basılır — eskiden
     # yalnız stdout susturuluyordu, stderr serbestçe akıyordu ve yeşil `--check` koşusunda
     # bile mvn/JVM gürültüsü (ör. sun.misc.Unsafe uyarıları) çıktıyı kirletiyordu. Desen
-    # scripts/test-com-zeus-cxf-sizintisi.sh:19-34 ile aynı. Başarısızlığı AÇIKÇA kontrol
+    # scripts/test-com-zeus-cxf-sozlesmesi.sh:19-34 ile aynı. Başarısızlığı AÇIKÇA kontrol
     # ediyoruz — subshell'in dönüş kodu, fonksiyonun geri kalanındaki sed/grep/awk boru
     # hattına gizlenmesin (fix round 1, Important 1).
     if ! ( cd "${FW_ROOT}/${module_dir}" \

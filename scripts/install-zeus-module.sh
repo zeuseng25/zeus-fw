@@ -86,7 +86,10 @@ fi
 
 # Module'e KONMAYACAK jar'lar (WildFly server module'lerinden gelir veya gereksiz).
 # zeus-* jar'ları hiçbir paylaşımlı module'e KONMAZ (WAR'da taşınırlar) → genel kalıp.
-# xml.ws / xml.soap api'leri: WildFly server module'leri (SOAP kapanışında görülür).
+# xml.ws / xml.soap api'leri: WildFly server module'leri (CXF artık TEMEL com.zeus
+#   kapanışında da olduğu için bu iki jar hem temel hem SOAP kapanışında görülür —
+#   module.xml'in HER İKİ dalı da (aşağıda) bu iki server module'ünü export etmek
+#   ZORUNDADIR, yoksa CXF init'i NoClassDefFoundError ile düşer).
 # ojdbc/orai18n/ucp: Oracle sürücüsü WildFly'ın KENDİ com.oracle.ojdbc module'ünden gelir
 #   (standalone.xml datasource'u ona bağlı). com.zeus'a da kopyalanırsa sunucuda İKİ sürücü
 #   olur: JNDI Connection'ı bir classloader'ın sınıfı, uygulamanın gördüğü tip diğerininki
@@ -220,7 +223,16 @@ echo ">> Jandex index tamam"
         # websocket: module'e spring-webflux girdiğinde (zeus-ai / Spring AI reactor zinciri)
         # POST_MODULE anotasyon taraması StandardWebSocketHandlerAdapter'ı link etmeye çalışır;
         # jakarta.websocket.Endpoint görünmezse deploy NoClassDefFoundError ile DÜŞER.
-        for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind websocket; do
+        # xml.ws + xml.soap: CXF (cxf-spring-boot-starter-jaxws) artık BURADA, TEMEL com.zeus
+        # kapanışında (zeus-wildfly-module/pom.xml) — soap-özel değil. jakarta.xml.ws-api ve
+        # jakarta.xml.soap-api jar'ları hem yukarıdaki EXCLUDE_REGEX'te hem WAR dışlama listesinde
+        # (generate-war-excludes.sh FIXED_TAIL: 'jakarta.[a-z.]+-api') STRIPlenir — ne module'e
+        # ne WAR'a konurlar. Bu iki server module'ü eksik olursa CXF init'i sırasında
+        # NoClassDefFoundError ile düşer (hem standart tip CXF istemcisi hem SOAP tipi
+        # uygulamalar için — com.zeus.soap import'u bu API'leri DEPLOYMENT classloader'ına
+        # export eder, com.zeus'un KENDİSİNE değil). Unutulmaması guard'la denetlenir:
+        # scripts/test-com-zeus-jakarta-api-kapsama.sh.
+        for m in servlet annotation persistence transaction validation inject xml.bind activation json json.bind websocket xml.ws xml.soap; do
             echo "        <module name=\"jakarta.${m}.api\" export=\"true\"/>"
         done
     fi

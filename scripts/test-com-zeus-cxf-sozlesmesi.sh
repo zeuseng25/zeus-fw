@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
-# com.zeus module sözleşmesinin CXF ve zeus-* içeriği doğru mu.
+# com.zeus module SÖZLEŞMESİNİN CXF ve zeus-* içeriği doğru mu.
 #
-# ESKİDEN bu guard "com.zeus'a CXF SIZMAMALI" derdi: CXF ayrı com.zeus.soap module'ündeydi,
-# zeus-sms onu opt-in ile kullanırdı. Karar değişti — CXF artık BİLEREK paylaşımlı com.zeus
-# module'ünde (zeus-wildfly-module/pom.xml, cxf-spring-boot-starter-jaxws); opt-in mekanizması
-# tamamen kalktı. Bu yüzden iddia TERS ÇEVRİLDİ: com.zeus kapanışında CXF ARTIK OLMALI.
+# ADI DEĞİŞTİ (fix round 1): eskiden test-com-zeus-cxf-sizintisi.sh idi ve "com.zeus'a CXF
+# SIZMAMALI" derdi — CXF ayrı com.zeus.soap module'ündeydi, zeus-sms onu opt-in ile kullanırdı.
+# Karar değişti — CXF artık BİLEREK paylaşımlı com.zeus module'ünde (zeus-wildfly-module/pom.xml,
+# cxf-spring-boot-starter-jaxws); opt-in mekanizması tamamen kalktı. İddia TERS ÇEVRİLDİ:
+# com.zeus kapanışında CXF ARTIK OLMALI. "sızıntı" (leak) artık olguyu YANLIŞ anlatıyordu —
+# guard artık CXF'in com.zeus SÖZLEŞMESİNİN bir PARÇASI olmasını doğruluyor; bu yüzden dosya
+# `git mv` ile buraya (…-sozlesmesi.sh) taşındı, kod değişmedi.
 # Değişmeyen kısım: zeus-* jar'larının (zeus-sms dahil) KENDİSİ hâlâ zeus-wildfly-module'e
 # EKLENMEZ — onlar WAR içinde taşınır, yalnız 3. parti kapanışları module'e girer.
 # Gerekçe: gelistirmeler/20-zeus-sms.md (opt-in tarihi) + gelistirmeler/14 (tip parent'ları).

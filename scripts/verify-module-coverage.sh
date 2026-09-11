@@ -11,7 +11,7 @@
 # NOT: "uygulamanın bağımlılığı module'de var mı?" kontrolü KALDIRILDI. Denylist
 # paketlemesinden sonra module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/
 # 19-war-paketleme-module-farkindaligi.md); onu eksik saymak yanlış pozitiftir. Bunun
-# TERSİ ise kabul edilmiş bir taviz DEĞİLDİR — bkz. (4) numaralı kontrolün başlığı.
+# TERSİ ise kabul edilmiş bir taviz DEĞİLDİR — bkz. (3) numaralı kontrolün başlığı.
 #
 # Kullanım:
 #   ./scripts/verify-module-coverage.sh [app-dizini]   (varsayılan: cwd)
@@ -141,15 +141,16 @@ if (( DESC_SOAP )); then USES_SOAP=1; fi
 SOAP_SLOT=""
 SOAP_MODULE_DIR=""
 if (( USES_SOAP )); then
-    # Slot değeri YALNIZ opt-in doğrulandıktan SONRA okunur. (Bu çözüm bir ara sürümde
-    # eksik-bağımlılık dalıyla BİRLİKTE silinmişti; oysa spec yalnız o dalın kaldırılmasını
-    # söylüyordu — kurulu olmayan bir com.zeus.soap slot'unu hedefleyen uygulama, guard'ın
-    # önlemek için var olduğu kriptik deploy hatasını alıyordu.)
+    # Slot değeri YALNIZ USES_SOAP (uygulamanın SOAP TİPİ olduğu — üretilen descriptor
+    # com.zeus.soap'ı FİİLEN import ediyor) doğrulandıktan SONRA okunur. (Bu çözüm bir ara
+    # sürümde eksik-bağımlılık dalıyla BİRLİKTE silinmişti; oysa spec yalnız o dalın
+    # kaldırılmasını söylüyordu — kurulu olmayan bir com.zeus.soap slot'unu hedefleyen
+    # uygulama, guard'ın önlemek için var olduğu kriptik deploy hatasını alıyordu.)
     SOAP_SLOT="$(prop_or_die zeus.soap.module.slot)"
     [[ -z "${SOAP_SLOT// /}" ]] && SOAP_SLOT="main"
     SOAP_MODULE_DIR="${WILDFLY_HOME}/modules/com/zeus/soap/${SOAP_SLOT}"
 else
-    SKIPPED+=("com.zeus.soap slot kontrolü (uygulama bu module'ü opt-in ETMİYOR)")
+    SKIPPED+=("com.zeus.soap slot kontrolü (uygulama SOAP TİPİ DEĞİL — üretilen descriptor com.zeus.soap'ı import etmiyor)")
 fi
 
 # Slot-kurulu-mu kontrolü: app'in işaret ettiği slot sunucuda yoksa deploy kriptik açılış
@@ -169,7 +170,7 @@ PASSED+=("com.zeus:${SLOT} slot'u sunucuda kurulu")
 if [[ -n "${SOAP_MODULE_DIR}" ]]; then
     if [[ ! -f "${SOAP_MODULE_DIR}/module.xml" ]]; then
         echo "HATA: uygulamanın hedeflediği com.zeus.soap:${SOAP_SLOT} slot'u bu sunucuda kurulu değil: ${SOAP_MODULE_DIR}" >&2
-        echo "      (uygulama bu module'ü OPT-IN ediyor: descriptor import'u ve/veya CXF dışlaması var)" >&2
+        echo "      (uygulama SOAP TİPİ: üretilen descriptor com.zeus.soap'ı import ediyor)" >&2
         if [[ "${SOAP_SLOT}" == "main" ]]; then
             echo "      Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )" >&2
         else
@@ -178,7 +179,7 @@ if [[ -n "${SOAP_MODULE_DIR}" ]]; then
         fi
         exit 2
     fi
-    PASSED+=("com.zeus.soap:${SOAP_SLOT} slot'u sunucuda kurulu (opt-in)")
+    PASSED+=("com.zeus.soap:${SOAP_SLOT} slot'u sunucuda kurulu (SOAP tipi)")
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────────────
