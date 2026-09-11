@@ -63,7 +63,7 @@ FIXED_TAIL='ojdbc[0-9]+|orai18n|ucp[0-9]+|jakarta\.[a-z.]+-api|lombok|spring-boo
 # install-zeus-module.sh module'ü ÜRETİRKEN aynı kaynağı (dependency, includeScope=runtime)
 # kullanır — liste ile module'ün aynı kümeyi görmesi buna dayanır.
 closure_artifact_ids() {
-    local module_dir="$1" out err
+    local module_dir="$1" out err ids
     out="$(mktemp)"
     err="$(mktemp)"
     # stdout VE stderr AYRI yakalanır; stderr YALNIZ hata dallarında basılır — eskiden
@@ -80,13 +80,39 @@ closure_artifact_ids() {
         rm -f "${out}" "${err}"
         return 1
     fi
+    # BOŞ ÇIKTI KAPISI (final review, Important 1). mvn 0 dönebilir ama `-q` +
+    # `-DoutputFile` kombinasyonu dosyayı hiç yazmayabilir; sözleşme modüllerinin ikisi de
+    # ONLARCA runtime bağımlılığı taşır, dolayısıyla BOŞ çıktı HER ZAMAN bir ÖLÇÜM
+    # HATASIDIR — meşru bir "bağımlılık yok" durumu değildir. Bu kapı OLMADAN boşluk yalnız
+    # `set -e`'nin boru hattı hatasına düşmesiyle yakalanıyordu; oysa `set -e`, fonksiyon
+    # `regex="$(list_soap)" || {...}` gibi bir `||` listesi içinden çağrıldığında ÇAĞRI
+    # ZİNCİRİNİN TAMAMINDA devre dışı kalır — `--check` tam olarak böyle çağırır ve o
+    # yüzden HİÇBİR ŞEY ölçmeden YEŞİL dönerdi (`--print soap` ise doğru şekilde kırmızıydı).
+    # Sonuç ZEUS_ALLOW_SHRINK=1 ile birleştiğinde: soap listesi CXF'siz yazılır, SOAP WAR'ı
+    # CXF'i WEB-INF/lib'de taşır, module de verir → tam da mimarinin önlemek için var
+    # olduğu çift-kopya LinkageError'ı. Desen: test-com-zeus-cxf-sozlesmesi.sh:35 ve
+    # test-com-zeus-jakarta-api-kapsama.sh:75 ile aynı.
+    if [[ ! -s "${out}" ]]; then
+        echo "HATA: '${module_dir}' için 'mvn dependency:list' 0 döndü ama ÇIKTI BOŞ." >&2
+        echo "      Bu bir ÖLÇÜM HATASIDIR — sözleşme modülünün runtime kapanışı hiçbir zaman boş değildir." >&2
+        cat "${err}" >&2
+        rm -f "${out}" "${err}"
+        return 1
+    fi
     # format: groupId:artifactId:jar[:classifier]:version:scope
-    sed 's/\x1b\[[0-9;]*m//g; s/^[[:space:]]*//' "${out}" \
+    ids="$(sed 's/\x1b\[[0-9;]*m//g; s/^[[:space:]]*//' "${out}" \
       | grep -E '^[^:]+:[^:]+:[^:]+:' \
       | awk -F: '{print $2}' \
       | grep -Ev '^zeus-[a-z0-9-]+$' \
-      | sort -u
+      | sort -u)" || true
     rm -f "${out}" "${err}"
+    # İKİNCİ KAPI: dosya dolu ama süzgeçten hiçbir artifactId çıkmadıysa (biçim değişikliği,
+    # tamamen zeus-* olan bir kapanış) yine ölçüm hatasıdır — sessizce boş liste DÖNDÜRÜLMEZ.
+    if [[ -z "${ids//[[:space:]]/}" ]]; then
+        echo "HATA: '${module_dir}' kapanışından HİÇ artifactId süzülemedi (dependency:list biçimi değişmiş olabilir)." >&2
+        return 1
+    fi
+    printf '%s\n' "${ids}"
 }
 
 # POM'da HÂLİHAZIRDA commit'li listedeki artifactId sayısı (sabit kuyruk HARİÇ).
@@ -167,8 +193,17 @@ list_soap() {
     # BİRLEŞİM: com.zeus ∪ com.zeus.soap. SOAP WAR'ına iki module'ün de içeriği girmemeli;
     # tek liste kullanılsa CXF yığını WAR'a girer ve com.zeus.soap ile çift kopya olurdu.
     # Küçülme karşılaştırmasının referansı zeus-soap-parent'taki commit'li listedir.
-    { closure_artifact_ids zeus-wildfly-module
-      closure_artifact_ids zeus-soap-wildfly-module; } | sort -u \
+    # HER İKİ kapanışın çıkış durumu AYRI AYRI denetlenir. Eskiden bir `{ a; b; }` grubu
+    # kullanılıyordu; bir brace grubu YALNIZ SON komutunun durumunu döndürür, dolayısıyla
+    # TEMEL kapanışın (a) başarısızlığı sessizce yutuluyordu. Bugün bunu yakalayan tek şey
+    # sonucun (yalnız soap kapanışı ≈64 id) MIN_ARTIFACT_IDS=100 tabanının altında
+    # kalmasıydı — yapısal değil, büyüklüklerin tesadüfüne dayanan bir savunma
+    # (final review, M8).
+    local base_ids soap_ids
+    base_ids="$(closure_artifact_ids zeus-wildfly-module)"      || return 1
+    soap_ids="$(closure_artifact_ids zeus-soap-wildfly-module)" || return 1
+    printf '%s\n%s\n' "${base_ids}" "${soap_ids}" \
+      | sed '/^[[:space:]]*$/d' | sort -u \
       | check_ids_sane "soap" "$(committed_id_count "${SOAP_POM}" "zeus.war.packaging-excludes")" \
       | build_regex
 }

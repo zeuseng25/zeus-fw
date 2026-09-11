@@ -2,10 +2,20 @@
 <!--
   BU DOSYA FRAMEWORK TARAFINDAN ÜRETİLİR — ELLE YAZILMAZ / APP REPO'SUNDA TUTULMAZ.
   SOAP TİPİ şablon (zeus-soap-parent kullanan uygulamalar): standart şablona ek olarak
-  - webservices subsystem dışlanır: WildFly'ın kendi JBossWS/CXF'i deployment'ı işlemesin;
-    CXF, com.zeus.soap module'ünden gelir (sınıf çakışması / LinkageError önlenir).
-  - com.zeus.soap module bağımlılığı: CXF yığını (cxf-rt-*, wsdl4j, saaj-impl, ...) burada;
-    meta-inf="import" ŞART — CXF bus extension'larını META-INF/cxf + ServiceLoader ile bulur.
+  - webservices subsystem dışlanır: WildFly'ın kendi JBossWS/CXF'i deployment'ı işlemesin
+    (sınıf çakışması / LinkageError önlenir). Bu dışlama bir DESCRIPTOR direktifidir ve
+    aşağıdaki module import'larından BAĞIMSIZDIR — com.zeus.soap satırı silinse de
+    yürürlükte kalır.
+  - CXF YIĞINI ARTIK com.zeus'TADIR (2026-09-11 kararı, gelistirmeler/08-wildfly-module-dagitim.md):
+    cxf-rt-*, wsdl4j, saaj-impl ve kapanışın tamamı paylaşımlı com.zeus module'ünden gelir.
+    com.zeus.soap bugün BOŞTUR (0 jar — CXF kapanışı EKSİ com.zeus kapanışı = ∅); yine de
+    import ediliyor çünkü SOAP tipi ile standart tip arasındaki YAPISAL AYRIM (ve CXF'in
+    ileride com.zeus'tan AYRIŞMASI ihtimali için ayrılmış dikiş) korunuyor. Bir SOAP
+    uygulamasının CXF'i bugün com.zeus'tan aldığını bilin: arıza ararken com.zeus.soap
+    dizinine bakmak BOŞ bir dizin gösterir, yanlış iz değildir — gerçekten boştur.
+  - meta-inf="import" ŞART — CXF bus extension'larını META-INF/cxf + ServiceLoader ile
+    bulur. Bu gereklilik BUGÜN com.zeus import'una atfedilir (CXF orada); com.zeus.soap
+    import'u boş olduğu için hiçbir META-INF kaynağı taşımaz.
 -->
 <jboss-deployment-structure xmlns="urn:jboss:deployment-structure:1.3">
     <deployment>

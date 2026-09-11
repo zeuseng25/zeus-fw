@@ -182,7 +182,10 @@ tutabilecek bu değerler bir SMS çağrısı için fazlasıyla uzundur.
   buydu. 2026-09-11'de (CXF taşındıktan sonra) **180**'e çıktı (13'ü CXF) — bu bir regresyon
   DEĞİL, "Güncelleme" bölümündeki bilinçli kararın doğrudan sonucu. `com.zeus.soap:main`
   2026-09-09'da 23 jar iken 2026-09-11'de küme farkıyla **0**'a düştü (aynı gerekçe).
-- ✅ **Guard/regresyon script'leri** (2026-09-11 koşusu, `./scripts/run-guards.sh` — 11/11 yeşil):
+- ✅ **Guard/regresyon script'leri** (2026-09-11 koşusu, `./scripts/run-guards.sh` — **13/13 yeşil,
+  atlanan 0**; süit 11'den 13'e çıktı: `test-descriptor-sablonlari.sh` yeni eklendi ve hiçbir
+  commit'te süite kayıtlı OLMAYAN `test-script-hardening.sh` nihayet kaydedildi — eski "11/11"
+  ifadesi o ikisini HİÇ kapsamıyordu):
   - `test-soap-slot-property.sh` → geçti (`zeus.soap.module.slot` hâlâ tanımlı ve her tipte
     `main`'i çözüyor; bu property SOAP tipinin **kendi** descriptor'ı için hâlâ kullanılıyor,
     opt-in mekanizmasından bağımsız olarak kaldı).

@@ -73,6 +73,9 @@ echo "  ✅ sabit kuyruk üreticiden okundu (muaf küme)"
 
 # --- Bir (liste, module dizinleri) çiftini iki yönlü karşılaştırır ---
 # $1 = etiket · $2 = üreteç liste modu (standard|soap) · $3.. = module dizinleri
+# Buradaki "module.xml yok" dalı YALNIZ ZORUNLU module'ler içindir (com.zeus). OPSİYONEL
+# olan com.zeus.soap çağrı yerinde elenir (aşağıya bakın) — kurulu olmayan opsiyonel bir
+# module KIRMIZI değil ATLANDI'dır.
 compare_pair() {
     local label="$1" mode="$2"; shift 2
     local dirs=("$@") d regex
@@ -81,7 +84,6 @@ compare_pair() {
         if [[ ! -f "${d}/module.xml" ]]; then
             echo "  ❌ [${label}] ölçüm yapılamadı: module KURULU DEĞİL (module.xml yok): ${d}"
             echo "     Önce: ( cd zeus-fw && ./scripts/install-zeus-module.sh )"
-            echo "     ve:   ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )"
             fail=1
             return 1
         fi
@@ -208,10 +210,33 @@ compare_pair "standard" "standard" "${MODULE_DIR}"
 # SOAP tipi: com.zeus ∪ com.zeus.soap ↔ zeus-soap-parent listesi (üreteç de BİRLEŞİM
 # üretir). com.zeus.soap küme farkıyla BOŞALABİLİR (CXF com.zeus'a taşındı) — bu MEŞRU
 # ve birleşim ölçümü bundan etkilenmez.
-compare_pair "soap" "soap" "${MODULE_DIR}" "${SOAP_MODULE_DIR}"
+#
+# com.zeus.soap KURULU DEĞİLSE: bu KIRMIZI DEĞİL, ATLANDI'dır (final review, Important 2).
+# com.zeus.soap YALNIZ gerçek @WebService ENDPOINT'İ yayınlayan SOAP TİPİ uygulamalar için
+# gerekir; yalnız REST uygulaması barındıran bir sunucunun onu kurması için hiçbir neden
+# yoktur (üstelik module bugün BOŞ — 0 jar). Eski davranış böyle bir sunucuda süiti
+# KALICI OLARAK KIRMIZI yapıyor, üstelik "eşitlik BOZUK" diyerek EKSİK bir OPSİYONEL
+# module'ü BOZULMUŞ bir değişmez gibi teşhis ediyordu. Aynı öncül, verify-module-coverage.sh'ta
+# "final review Critical 1" olarak zaten bir kez kaldırılmıştı (bkz. o dosyadaki :100-108
+# gerekçesi) — buraya geri sokulmaz. Operatöre "kırmızı normaldir" öğretmek, tüm güvenlik
+# hikâyesi "bir guard kırmızıya döner" olan bir sistemi çürütür.
+# KIRMIZI, VAR OLAN ama listeyle UYUŞMAYAN bir soap module'üne saklıdır.
+soap_skipped=0
+if [[ -f "${SOAP_MODULE_DIR}/module.xml" ]]; then
+    compare_pair "soap" "soap" "${MODULE_DIR}" "${SOAP_MODULE_DIR}"
+else
+    soap_skipped=1
+    echo "  ── ATLANDI [soap]  (opsiyonel module kurulu değil: ${SOAP_MODULE_DIR})"
+    echo "     Neden meşru: com.zeus.soap YALNIZ SOAP TİPİ (gerçek @WebService endpoint'i"
+    echo "     yayınlayan) uygulamalar için gerekir; REST-only bir sunucuda kurulu olmaması"
+    echo "     BEKLENEN durumdur. Bu koşuda soap çifti HİÇBİR ŞEY DOĞRULAMADI."
+    echo "     Kurmak için: ( cd zeus-fw && ./scripts/install-zeus-module.sh --module soap )"
+fi
 
 if (( fail )); then
     echo "  ❌ module ↔ liste eşitliği BOZUK (yukarıdaki yönlere bakın)"
+elif (( soap_skipped )); then
+    echo "  ✅ module ↔ liste iki yönlü eşitliği SAĞLANIYOR (standard) — soap çifti ATLANDI"
 else
     echo "  ✅ module ↔ liste iki yönlü eşitliği SAĞLANIYOR (standard + soap)"
 fi

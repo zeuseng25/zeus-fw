@@ -21,7 +21,7 @@ Spring Boot karşılıkları:
 |-------------|------|-------|
 | `spring-boot-dependencies` | `zeus-dependencies` | BOM — tüm sürümler |
 | `spring-boot-starter-parent` | `zeus-parent` | Standart (REST) uygulamaların parent'ı — plugin/derleme yönetimi |
-| — | `zeus-soap-parent` / `zeus-bff-parent` / `zeus-standalone-parent` | TİP parent'ları: SOAP (ince WAR + com.zeus.soap module — CXF artık paylaşımlı `com.zeus`'ta, `com.zeus.soap` bugün **boş**, yalnız `webservices` subsystem dışlama ayrımı için var) / BFF (gateway, FAT WAR, izole) / **Standalone** (self-contained WAR, com.zeus'a bağlanmaz — classloader izolasyonu gereken servisler). Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
+| — | `zeus-soap-parent` / `zeus-bff-parent` / `zeus-standalone-parent` | TİP parent'ları: SOAP (ince WAR + com.zeus.soap module — CXF artık paylaşımlı `com.zeus`'ta, `com.zeus.soap` bugün **boş** (0 jar); ileride CXF'in `com.zeus`'tan AYRIŞMASI ihtimali için korunan mimari dikiş. `webservices` subsystem dışlaması bundan BAĞIMSIZ bir descriptor direktifidir — module import'u silinse de yürürlükte kalır) / BFF (gateway, FAT WAR, izole) / **Standalone** (self-contained WAR, com.zeus'a bağlanmaz — classloader izolasyonu gereken servisler). Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
 | `spring-boot-*` | `zeus-base/-logger/-database/-service/-ai/-redis/-batch/-soap/-sms/-bff-starter/-bff-login` | Yetenek modülleri |
 
 ## Mimari — Maven Multi-Module + Parent Zinciri

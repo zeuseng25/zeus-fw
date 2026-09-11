@@ -134,6 +134,25 @@ Descriptor gibi, WAR'ın dışlama listesi de **üretilir**. Kaynağı `zeus-wil
 üretildiği için ayrışamazlar. CI için: `--check`.
 Gerekçe: `19-war-paketleme-module-farkindaligi.md`.
 
+### 8) `test-descriptor-sablonlari.sh` — şablonların KENDİSİNİ ölçen guard
+
+Şablonlar WAR'ın `WEB-INF`'ine **birebir** kopyalanır; yani bu dört dosya, uygulamanın
+WildFly'daki sınıf yükleme davranışının TEK KAYNAĞIDIR. Buna rağmen 2026-09-11'e kadar
+şablon içeriğini ölçen **hiçbir** guard yoktu: `verify-module-coverage.sh` yalnız BUILD
+EDİLMİŞ bir WAR'da `name="com.zeus"` geçtiğine bakıyordu. Ölçüldü — `descriptor-standard`'dan
+`annotations="true"` silindiğinde tüm süit YEŞİL kalıyor, ama `@HandlesTypes(WebApplication
+Initializer)` taraması çözülemiyor, `DispatcherServlet` hiç kurulmuyor ve her standart tip
+uygulama runtime'da **404** dönüyordu (deploy BAŞARILI görünerek).
+
+Guard her şablon için şunu doğrular: XML parse ediliyor mu · beklenen `<module>` kümesi
+birebir mi (`standard`: `com.zeus` · `soap`: `com.zeus` + `com.zeus.soap` · `bff` ve
+`standalone`: `<dependencies>` bloğu **HİÇ OLMAMALI**) · yük taşıyan attribute'lar yerinde mi
+(`annotations="true"`, `services="import"`, `meta-inf="import"` — her birinin ne kırdığı
+script'in içinde yazılıdır) · slot yer tutucusu doğru property'yi mi gösteriyor ·
+`exclude-subsystems` doğru mu (her tipte `logging`, YALNIZ soap tipinde `webservices`).
+Şablon **dizinleri diskten türetilir**: yeni bir tip eklenip guard'a yazılmazsa KIRMIZI olur,
+sessizce kapsam dışı kalamaz. `run-guards.sh`'a `fw` etiketiyle kayıtlı.
+
 ## ~~Uygulamaya özel ek module bağımlılığı~~ (`zeus.descriptor.extra.modules`) — **KALDIRILDI**
 
 > **Bu mekanizma 2026-09-11'de framework'ten TAMAMEN SİLİNDİ** (commit `1b08cb8`).

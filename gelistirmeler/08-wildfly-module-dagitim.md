@@ -244,8 +244,19 @@ sunucuya **ikinci bir kurulum adımı** (`install-zeus-module.sh --module soap`)
 adım unutulabilir bir operasyonel adımdı — SOAP tipi bir uygulama deploy edilmeden önce
 `com.zeus.soap` slot'unun da kurulu olduğunu ayrıca doğrulamak gerekiyordu
 (`verify-module-coverage.sh`'ın "slot kurulu mu?" kontrolü bunun için vardı). `com.zeus` ZATEN
-her sunucuda kuruludur (module'ler arasında EN AZ opsiyonel olanı) — CXF'i oraya taşımak
-ikinci kurulum adımını YAPISAL olarak imkânsız kılıyor: artık kurulacak "ikinci bir şey" yok.
+her sunucuda kuruludur (module'ler arasında EN AZ opsiyonel olanı) — CXF'i oraya taşımak,
+**STANDART TİP** bir uygulamanın (SOAP İSTEMCİSİ; motive eden vaka `zeus-sms`) ikinci
+kurulum adımını tamamen ortadan kaldırıyor: böyle bir uygulama artık ne opt-in yazar ne de
+`com.zeus.soap`'ın kurulu olmasını bekler.
+
+**Kazanç BURAYA KADARDIR — abartmayın.** SOAP TİPİ uygulamalar için ikinci kurulum adımı
+**hâlâ duruyor**: `install-zeus-module.sh --module soap` hâlâ var, `verify-module-coverage.sh`
+üretilen descriptor'ı `com.zeus.soap` import ederken slot kurulu değilse deploy'u HÂLÂ
+`exit 2` ile durduruyor, ve `test-module-liste-esitligi.sh` eksik `com.zeus.soap`'ı
+"ATLANDI" diye raporlamak zorunda (final review, Important 2) — çünkü module GERÇEKTEN
+eksik olabiliyor. "Artık kurulacak ikinci bir şey yok" cümlesi SOAP tipi için DOĞRU DEĞİLDİR;
+yalnız standart tip CXF istemcileri için doğrudur.
+
 Bedeli ölçüldü ve kabul edildi: `com.zeus` 157 → **180** jar'a büyüdü (13'ü CXF) — SMS'i hiç
 kullanmayan bir uygulama da bu 13 jar'ı classpath'inde görür (zararsız — module geniş,
 uygulama dar kuralı zaten böyle işliyor, bkz. yukarıdaki "Module geniştir, uygulama dardır").
@@ -269,7 +280,10 @@ tamamı — 64 jar — "temel com.zeus module'ünde zaten var" diye atlandı, 0 
 yapısal ayrım (SOAP tipi vs standart tip) korunuyor; module'ün boş olması bu ayrımı geçersiz
 kılmıyor, yalnız o ayrımın taşıdığı jar sayısını sıfıra indiriyor. `test-module-liste-esitligi.sh`
 de bunu bir "eksiklik" değil **meşru bir durum** olarak ele alır (soap çifti `com.zeus ∪
-com.zeus.soap` birleşimine bakar; birleşim zaten `com.zeus`'un kendisiyle özdeştir).
+com.zeus.soap` birleşimine bakar; birleşim zaten `com.zeus`'un kendisiyle özdeştir). Aynı
+guard, `com.zeus.soap` sunucuda HİÇ KURULU DEĞİLSE soap çiftini **ATLANDI** diye raporlar ve
+YEŞİL kalır: yalnız REST uygulaması barındıran bir sunucunun bu opsiyonel module'ü kurması
+için hiçbir neden yoktur (kırmızı, VAR olup listeyle UYUŞMAYAN bir soap module'üne saklıdır).
 
 **Boş bir module'ün KENDİ BAŞINA yeterli olmadığı — bu satırla DURMAYIN.** Bir module'ün
 "0 jar" olması, o module'ü kurmanın zararsız bir hiç-bir-şey-yapmama olduğu anlamına GELMEZ.
