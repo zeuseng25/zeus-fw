@@ -33,7 +33,7 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
         boolean[] sonuc = new boolean[autoConfigurationClasses.length];
 
         // Kaçış kapısı 1: mekanizmayı tamamen kapat (bu değişiklik öncesi davranış).
-        if (!booleanOzellikOku("zeus.autoconfig.filter.enabled", true)) {
+        if (!booleanOzellikOku(environment, "zeus.autoconfig.filter.enabled", true)) {
             Arrays.fill(sonuc, true);
             return sonuc;
         }
@@ -55,7 +55,7 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
             }
             Optional<ZeusCapability> sahip = ZeusCapabilities.sahipBul(sinif);
             sonuc[i] = sahip.isEmpty()
-                    || booleanOzellikOku(sahip.get().property(), false);
+                    || booleanOzellikOku(environment, sahip.get().property(), false);
         }
         return sonuc;
     }
@@ -71,8 +71,11 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
      * boolean); bunu sessizce false'a çevirip yeteneği kapatmak, hatayı gizler ve sorunu
      * ilerideki "eksik bean" gibi anlaşılmaz bir hataya öteler. O yüzden burada fail-open
      * UYGULANMAZ: hata, property adını ve verilen değeri belirterek açıkça fırlatılır.
+     *
+     * Paket-görünür (private DEĞİL): ZeusCapabilityVerifier de aynı okuma/hata davranışını
+     * kullanır — typo'lu bir property iki bileşende de aynı şekilde ele alınsın diye.
      */
-    private boolean booleanOzellikOku(String anahtar, boolean varsayilan) {
+    static boolean booleanOzellikOku(Environment environment, String anahtar, boolean varsayilan) {
         try {
             return environment.getProperty(anahtar, Boolean.class, varsayilan);
         } catch (ConversionFailedException e) {

@@ -2,3 +2,7 @@
 # (bkz. spring-boot-autoconfigure!/META-INF/spring.factories).
 org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
 com.zeus.framework.autoconfig.ZeusAutoConfigurationFilter
+
+# "Bağımlılık var ama property yok" çelişkisini açılışta yakalar.
+org.springframework.boot.env.EnvironmentPostProcessor=\
+com.zeus.framework.autoconfig.ZeusCapabilityVerifier
