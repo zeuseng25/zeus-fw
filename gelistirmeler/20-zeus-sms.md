@@ -1,49 +1,90 @@
 # 20 — `zeus-sms`: standart tipte CXF SOAP istemcisi (tasarım)
 
 **Durum:** uygulandı ve doğrulandı (zeus-fw BASE: 79d7122; uçtan uca kanıt: `spring-wildfly-arch`
-commit `d9b0742`). Karar tarihi: 2026-09-09. Aşağıdaki "WAR paketleme çelişkisi" bölümünde
-tarif edilen paketleme boşluğu **çözüldü** — bkz. "Çözüm: `${zeus.war.packaging-excludes.with-soap}`"
-bölümü aşağıda.
+commit `d9b0742`). İlk karar tarihi: 2026-09-09. **2026-09-11'de mekanizma değişti** — bkz. hemen
+aşağıdaki "Güncelleme" bölümü; ondan sonraki "Tarihsel karar" bölümü artık **uygulanacak talimat
+DEĞİL**, yalnızca kararın neden önce böyle alındığını gösteren kayıttır.
 
-Framework'e SMS gönderimi için bir SOAP **istemcisi** ekleniyor. Zorluk şurada: CXF yığını
-bugüne kadar yalnız **SOAP tipi** uygulamalara (`zeus-soap-parent` + `com.zeus.soap`) aitti.
-`zeus-sms` ise **standart tip** bir uygulamanın (yalnız `com.zeus`) SOAP çağrısı yapmasını
-gerektiriyor.
+Framework'e SMS gönderimi için bir SOAP **istemcisi** eklendi. Zorluk şuydu: CXF yığını başlangıçta
+yalnız **SOAP tipi** uygulamalara (`zeus-soap-parent` + `com.zeus.soap`) aitti; `zeus-sms` ise
+**standart tip** bir uygulamanın (yalnız `com.zeus`) SOAP çağrısı yapmasını gerektiriyordu.
 
-## Karar: CXF yerinde kalır, uygulama opt-in eder
+## Güncelleme (2026-09-11): opt-in mekanizması kaldırıldı, CXF artık `com.zeus`'ta
 
-`com.zeus` module'ü **büyümez**. CXF yığını bugünkü yerinde (`com.zeus.soap`, 23 jar) kalır.
-SMS kullanan uygulama, standart parent'ta kalarak descriptor'ına opt-in ekler:
+CXF yığını `zeus-wildfly-module`'ün (yani `com.zeus`'un) bağımlılık sözleşmesine taşındı; bunu
+tetikleyen ayrı bir planın parçasıydı — `.superpowers/sdd/2026-09-11-cxf-com-zeus-ve-script-sertlestirme/`.
+Sonuç: aşağıdaki "Tarihsel karar" bölümünün tarif ettiği **her şey silindi**:
+
+- `zeus.descriptor.extra.modules` property'si (opt-in import satırı) — **tamamen kaldırıldı**
+  (yalnız SOAP kullanımı değil, mekanizmanın kendisi; doğrulama: `pom.xml`'lerde artık hiç geçmiyor).
+- İkinci üretilmiş liste `zeus.war.packaging-excludes.with-soap` — **kaldırıldı**.
+- Descriptor şablonundaki extra-module yer tutucusu ve iki-property tutarlılık guard'ı —
+  **kaldırıldı**.
+- `../spring-wildfly-arch/pom.xml`'deki iki opt-in satırı — **kaldırıldı**.
+
+**Yeni durum:** standart tip bir uygulama, `com.zeus`'a bağlanmaktan (zaten her uygulamanın
+yaptığı şey) başka **hiçbir şey yazmadan** CXF'e erişir — ne descriptor'a ek `<module>` satırı, ne
+ikinci bir `zeus.war.packaging-excludes` yönlendirmesi. Aşağıdaki "Karar" ve "Çözüm" bölümlerindeki
+XML örnekleri artık **uygulanmaz**.
+
+**Ölçülen sonuçlar** (bu görevin kendi koşularından, 2026-09-11):
+
+| Ölçüm | Önce | Sonra |
+|---|---|---|
+| Standart/SOAP WAR dışlama listesi (artifactId) | 168 | **193** (standart = soap, artık aynı küme) |
+| Kurulu `com.zeus:main` module'ü (jar) | 157 | **180** (13'ü CXF) |
+| Kurulu `com.zeus.soap:main` module'ü (jar) | 23 | **0** (küme farkıyla boşaldı — bkz. `08-wildfly-module-dagitim.md`) |
+
+Gerçek deploy kanıtı (2026-09-11, `spring-wildfly-arch`, **hiçbir opt-in satırı olmadan**):
+`ZeusSmsClient: istemci kuruldu (endpoint=...)` log satırı — yani CXF proxy'si `com.zeus`'un
+paylaşılan module'ünden kuruldu, uygulamanın pom'unda tek bir ek satır yokken.
+
+**Sınır kuralı (aşağıdaki "Spike" bölümündeki KURAL) DEĞİŞMEDİ, korunur:** standart tip
+uygulamalar CXF'i yalnız **istemci** olarak kullanabilir. `@WebService` **implementasyon** sınıfı
+taşıyan bir uygulama hâlâ SOAP tipine (`zeus-soap-parent`) geçmelidir — WildFly onu WS deployment
+sayıp kendi CXF'ini ekler, o zaman çakışma geri döner. Bu sınırın nedeni artık "CXF ikinci bir
+module'de" değil (o gerekçe ortadan kalktı), ama sonucu aynı: implementasyon `webservices`
+subsystem'ini tetikler, istemci tetiklemez (bkz. Spike bölümü, ölçüm hâlâ geçerli).
+
+## Tarihsel karar (2026-09-09, artık geçerli DEĞİL): CXF yerinde kalır, uygulama opt-in eder
+
+> Bu bölüm SADECE kararın ilk hâlinin gerekçesini kaydeder. Aşağıdaki XML **uygulanmaz** —
+> güncel mekanizma için yukarıdaki "Güncelleme" bölümüne bakın.
+
+İlk kararda `com.zeus` module'ü **büyümeyecekti**. CXF yığını o zamanki yerinde (`com.zeus.soap`,
+23 jar) kalacak, SMS kullanan uygulama standart parent'ta kalarak descriptor'ına opt-in
+ekleyecekti:
 
 ```xml
+<!-- TARİHSEL — artık geçerli değil, uygulamayın -->
 <properties>
     <zeus.descriptor.extra.modules>&lt;module name="com.zeus.soap" slot="${zeus.soap.module.slot}"
         services="import" meta-inf="import" annotations="true"/&gt;</zeus.descriptor.extra.modules>
 </properties>
 ```
 
-`meta-inf="import"` **şarttır**: CXF bus extension'larını `META-INF/cxf` + ServiceLoader ile
-bulur; onsuz bus başlamaz.
+**O zaman reddedilen alternatif — CXF'i `com.zeus`'a koymak — bu, 2026-09-11'de fiilen YAPILAN
+değişikliğin ta kendisidir.** İlk kararın gerekçesi "SMS'i hiç kullanmayan uygulamalar da 23 jar'ı
+taşır, `com.zeus` lockstep'i ağırlaşır" idi. Bu maliyet gerçekleşti (module +23 jar büyüdü, 157 →
+180) ama ikinci module'ü **her sunucuya kurma zorunluluğunu** ortadan kaldırma kazancı daha ağır
+bastı — güncel gerekçe: `08-wildfly-module-dagitim.md` → "Neden CXF artık `com.zeus`'ta".
 
-**Reddedilen alternatif — CXF'i `com.zeus`'a koymak:** SMS'i hiç kullanmayan uygulamalar da
-23 jar'ı taşır, `com.zeus` lockstep'i ağırlaşır ve `08-wildfly-module-dagitim.md`'deki
-"CXF yığını ayrı `com.zeus.soap` module'üne aittir" kararı geri alınırdı.
-
-**Reddedilen alternatif — konteynerin JBossWS'i:** hiç jar paketlemez ama CXF'e özgü
+**O zaman reddedilen alternatif — konteynerin JBossWS'i — hâlâ reddedilir:** CXF'e özgü
 yeteneklere (interceptor, WS-Security yapılandırması) kod erişimi kalmaz; SMS istemcisinin
-correlation ID'yi giden isteğin protokol header'ına basması bunu gerektiriyor.
+correlation ID'yi giden isteğin protokol header'ına basması bunu gerektiriyor. Bu gerekçe
+mekanizma değişikliğinden etkilenmedi.
 
-## Spike: konteynerin CXF'iyle çakışır mı? — ÖLÇÜLDÜ, ÇAKIŞMIYOR
+## Spike: konteynerin CXF'iyle çakışır mı? — ÖLÇÜLDÜ, ÇAKIŞMIYOR (bulgu hâlâ geçerli)
 
 Endişe şuydu: standart tipte `webservices` subsystem'i **aktiftir** (yalnız SOAP şablonu onu
 dışlar) ve WildFly kendi CXF'ini taşır (`org/apache/cxf` altında 4 module ağacı). Aynı
 deployment iki CXF görürse `LinkageError` beklenir.
 
-Ölçüm: `spring-wildfly-arch` (standart tip) geçici olarak `com.zeus.soap`'ı import edecek
-şekilde build edilip WildFly 41'e deploy edildi; deployment'ın gerçekte hangi sınıfları
-gördüğü `Class.forName` + `CodeSource` ile yazdırıldı.
+Ölçüm (2026-09-09, eski opt-in mekanizmasıyla): `spring-wildfly-arch` (standart tip) geçici
+olarak `com.zeus.soap`'ı import edecek şekilde build edilip WildFly 41'e deploy edildi;
+deployment'ın gerçekte hangi sınıfları gördüğü `Class.forName` + `CodeSource` ile yazdırıldı.
 
-| Sınıf | Yüklendiği yer |
+| Sınıf | Yüklendiği yer (2026-09-09 ölçümü) |
 |---|---|
 | `org.apache.cxf.jaxws.JaxWsProxyFactoryBean` | `modules/com/zeus/soap/main/cxf-rt-frontend-jaxws-4.2.3.jar` |
 | `org.apache.cxf.BusFactory` | `modules/com/zeus/soap/main/cxf-core-4.2.3.jar` |
@@ -53,54 +94,22 @@ gördüğü `Class.forName` + `CodeSource` ile yazdırıldı.
 Deploy'da `ERROR`/`LinkageError`/`ClassCastException` **sıfır**; uygulama
 `GET /api/products` → **200**.
 
-**Sonuç:** CXF sınıfları `com.zeus.soap` module classloader'ından geldi, konteynerinkinden
-değil. Sebep: WildFly kendi CXF'ini deployment'a yalnız onu **WS deployment'ı** sayınca
-ekler — yani `@WebService` taşıyan bir **implementasyon sınıfı** olduğunda. Salt istemci
-kullanan düz bir WAR bu tanıma girmez.
+**2026-09-11'den sonraki fark:** CXF artık `com.zeus.soap`'tan değil doğrudan `com.zeus`'tan
+gelir (yukarıdaki "Güncelleme" bölümündeki `ZeusSmsClient: istemci kuruldu` log kanıtı bunun
+2026-09-11'de gerçek bir deploy'da doğru çalıştığını gösterir). Temel sonuç değişmedi: WildFly
+kendi CXF'ini bir deployment'a yalnız onu **WS deployment'ı** sayınca ekler — yani `@WebService`
+taşıyan bir **implementasyon sınıfı** olduğunda. Salt istemci kullanan düz bir WAR bu tanıma
+girmez.
 
 **Spike'ın sınırı:** bu ölçüm sınıf görünürlüğünü ve çift kopya olmadığını kanıtlar; tam bir
 SOAP gidiş-dönüşünü (bus başlatma, transport, extension yüklenmesi) kanıtlamaz. O,
-uygulamada gerçek bir yerel endpoint'e karşı test edilecek.
+uygulamada gerçek bir yerel endpoint'e karşı test edilmiştir (aşağıdaki "Test ve doğrulama").
 
-> **KURAL (sınır koşulu):** `com.zeus.soap`'ı opt-in import eden standart tip uygulamalar
-> yalnız **istemci** olabilir. Bir gün `@WebService` implementasyon sınıfı taşırlarsa WildFly
-> onları WS deployment sayıp kendi CXF'ini de ekler ve çakışma geri döner — o noktada
-> uygulama **SOAP tipine** (`zeus-soap-parent`) geçmelidir.
-
-## Önce kapatılacak boşluk
-
-**`zeus.soap.module.slot` yalnız `zeus-soap-parent`'ta tanımlı** (`zeus-soap-parent/pom.xml:31`).
-Standart parent kullanan bir uygulama yukarıdaki opt-in değerini yazarsa property **çözülmez**,
-descriptor'a literal `${zeus.soap.module.slot}` girer ve WildFly o adda slot bulamaz.
-
-**Düzeltme:** property `zeus-parent`'a taşınır. Gerekçe: `zeus.module.slot` gibi bir
-**platform-release sabiti**dir, tip kararı değil; her tipin görmesi doğrudur. `zeus-soap-parent`
-onu miras alır, kendi tanımına gerek kalmaz.
-
-### Yanlış alarm: slot'suz `com.zeus` bağımlılığı (incelendi, kusur DEĞİL)
-
-Kurulu `com.zeus.soap` module.xml'inde `<module name="com.zeus"/>` (slot'suz) görülüyor ve bu
-ilk bakışta "versiyonlu slot kullanan bir uygulama iki kopya görür" endişesi doğuruyor.
-Kaynağa bakıldığında mekanizma **zaten var**: `install-zeus-module.sh` bir `--base-slot`
-argümanı alıyor ve module.xml'i ona göre üretiyor (`scripts/install-zeus-module.sh:181-184`):
-
-```bash
-if [[ "${BASE_SLOT}" == "main" ]]; then
-    echo '        <module name="com.zeus"/>'
-else
-    echo "        <module name=\"com.zeus:${BASE_SLOT}\"/>"
-fi
-```
-
-Slot'suz görünmesinin sebebi varsayılanın `main` olması. Yani tasarımda eksik yok; kalan risk
-**operasyoneldir**: `com.zeus` versiyonlu bir slot'a kurulup `com.zeus.soap` `--base-slot`
-verilmeden kurulursa, soap module'ü `main`'e bakar. Bu bir kod düzeltmesi değil, runbook
-disiplinidir → `17-module-yenileme-runbook.md`'ye adım olarak yazılır.
-
-> **Versiyonlu slot yolu hiç çalıştırılmadı.** Buradaki `--base-slot` mekanizması kaynakta
-> mevcut ama bir kez bile yürütülmedi; üretilen `name="com.zeus:1.1.0"` sözdiziminin JBoss
-> Modules tarafından çözüldüğü doğrulanmadı. Kapsam ve ilk sınanacaklar listesi:
-> `10-versiyonlu-slot-uretilen-descriptor.md` → "DOĞRULANMAMIŞ: versiyonlu slot yolu".
+> **KURAL (sınır koşulu, DEĞİŞMEDİ):** standart tip uygulamalar CXF'i (artık `com.zeus`
+> üzerinden, hiçbir opt-in olmadan erişilse bile) yalnız **istemci** olarak kullanabilir. Bir gün
+> `@WebService` implementasyon sınıfı taşırlarsa WildFly onları WS deployment sayıp kendi CXF'ini
+> de ekler ve çakışma geri döner — o noktada uygulama **SOAP tipine** (`zeus-soap-parent`)
+> geçmelidir.
 
 ## Bileşenler
 
@@ -154,102 +163,75 @@ tutabilecek bu değerler bir SMS çağrısı için fazlasıyla uzundur.
   correlation ID damgası — sunucu tarafında `zeus-soap`'ın `Inbound`'u ile AYNI yoldan
   okunarak; kimlik yokken header eklenmediği negatif yol dahil) ve `ZeusSmsPropertiesTest`. `mvn clean install`
   (2026-09-09 koşusu, `JAVA_HOME=openjdk@25`) **EXIT 0** — tüm modüller dahil tam build yeşil.
-- ✅ **Uçtan uca:** standart tipte `spring-wildfly-arch`'a eklenip gerçek WildFly 41'e deploy
-  edildi (Task 6, app repo commit `d9b0742`). `POST /api/sms` → beklenen `500`
-  (`ZeusSmsException`, karşıda gerçek SMS servisi yok); `ClassNotFoundException`/`LinkageError`/
-  `ClassCastException` **yok**. Exception stack trace'i CXF çerçevelerinin
+- ✅ **Uçtan uca (2026-09-09, ESKİ opt-in mekanizmasıyla):** standart tipte `spring-wildfly-arch`'a
+  eklenip gerçek WildFly 41'e deploy edildi (Task 6, app repo commit `d9b0742`). `POST /api/sms` →
+  beklenen `500` (`ZeusSmsException`, karşıda gerçek SMS servisi yok); `ClassNotFoundException`/
+  `LinkageError`/`ClassCastException` **yok**. Exception stack trace'i CXF çerçevelerinin
   `com.zeus.soap//org.apache.cxf...` önekiyle basıldığını gösterdi — yani proxy fiilen
   paylaşımlı `com.zeus.soap` module'ünden kuruldu, WAR'ın kendi bundled kopyasından değil.
   Detay ve tam log: `.superpowers/sdd/2026-09-09-zeus-sms/task-6-report.md`.
-- ✅ **Regresyon — `com.zeus` module'ünün jar sayısı değişmedi (kararın kanıtı):**
-  `ls $WILDFLY_HOME/modules/com/zeus/main/*.jar | wc -l` → **157** (2026-09-09'da yeniden
-  ölçüldü, `17-module-yenileme-runbook.md`'deki 2026-08-28 değeriyle aynı). `com.zeus.soap:main`
-  → **23** jar (bu doküman başında belirtilen "23 jar" ile tutarlı).
-- ✅ **Guard/regresyon script'leri** (2026-09-09 koşusu, hepsi kendi çalışma ağacını
-  yeniden kurup ölçüyor):
-  - `test-soap-slot-property.sh` → geçti (standart tip, SOAP tipi ve `zeus-parent`'ın kendisi
-    hepsi `zeus.soap.module.slot=main`'i çözüyor).
-  - `test-com-zeus-cxf-sizintisi.sh` → geçti (`zeus-sms` `zeus-wildfly-module`'ün kapanışında
-    değil; `com.zeus:main` kapanışında CXF yok).
-  - `test-generate-war-excludes.sh` → geçti (soap dışlama listesi standart listenin üst kümesi,
-    193 > 168 artifactId).
-  - `test-war-packaging-soap.sh` → geçti (SOAP tipi WAR'da CXF/spring-core yok, yalnız zeus-*).
-  - `test-no-war-keep.sh`, `test-coverage-guard.sh`, `test-generator-wiring.sh`,
-    `generate-war-excludes.sh --check` → geçti.
-  - `test-war-packaging.sh` → geçti (adım A: `spring-wildfly-arch` WAR'ında tam **6** zeus
-    jar'ı — `zeus-sms` dahil —, `com.zeus.soap` yığınından **CXF sıfır**; adım B: module'de
-    olmayan bağımlılık WAR'a girer). Bu script Task 8'de (aşağıya bkz.) yeni taban sayısına
-    ve CXF-sıfır iddiasına güncellendi; artık başarısız değil.
+- ✅ **Uçtan uca (2026-09-11, YENİ mekanizma — CXF `com.zeus`'ta, hiçbir opt-in satırı olmadan):**
+  `spring-wildfly-arch` gerçek WildFly 41'e deploy oldu, log'da
+  `ZeusSmsClient: istemci kuruldu (endpoint=...)`; hata taramasında `ERROR`/`LinkageError`/
+  `ClassCastException`/`NoClassDefFoundError`/`OutOfMemory` **sıfır**. Aynı koşuda SOAP tipi
+  `zeus-sample-soap` da deploy oldu (`?wsdl` → 200, SOAP POST → 200) — bu, `com.zeus.soap`'ın
+  jar'sız kalmasının (küme farkı ∅) deploy'u bozmadığının kanıtıdır. Tam log ve komutlar:
+  `.superpowers/sdd/2026-09-11-cxf-com-zeus-ve-script-sertlestirme/task-3-report.md`.
+- ✅ **Regresyon — `com.zeus` module'ünün jar sayısı (kararın tarihçesi):**
+  2026-09-09'da (opt-in dönemi) **157** idi — o dönem CXF `com.zeus`'a hiç girmemişti, karar
+  buydu. 2026-09-11'de (CXF taşındıktan sonra) **180**'e çıktı (13'ü CXF) — bu bir regresyon
+  DEĞİL, "Güncelleme" bölümündeki bilinçli kararın doğrudan sonucu. `com.zeus.soap:main`
+  2026-09-09'da 23 jar iken 2026-09-11'de küme farkıyla **0**'a düştü (aynı gerekçe).
+- ✅ **Guard/regresyon script'leri** (2026-09-11 koşusu, `./scripts/run-guards.sh` — 11/11 yeşil):
+  - `test-soap-slot-property.sh` → geçti (`zeus.soap.module.slot` hâlâ tanımlı ve her tipte
+    `main`'i çözüyor; bu property SOAP tipinin **kendi** descriptor'ı için hâlâ kullanılıyor,
+    opt-in mekanizmasından bağımsız olarak kaldı).
+  - `test-com-zeus-cxf-sozlesmesi.sh` → geçti. **İsim ve anlam değişti:** eskiden
+    `test-com-zeus-cxf-sizintisi.sh` idi ve "`com.zeus` kapanışında CXF YOK" iddia ediyordu
+    (o zamanki doğru davranış). Bugün TERSİNİ, yani "`com.zeus` kapanışında CXF **VAR**"
+    iddia ediyor — isim de bunu yansıtacak şekilde `-sozlesmesi` (sözleşme) olarak değiştirildi.
+  - `test-com-zeus-jakarta-api-kapsama.sh` → geçti (yeni guard, CXF'in gerektirdiği
+    `jakarta.xml.ws.api`/`jakarta.xml.soap.api`'nin module.xml'in TEMEL dalında export
+    edildiğini doğrular — CXF `com.zeus`'a taşındığı için gerekli oldu).
+  - `test-module-liste-esitligi.sh` → geçti (kurulu module ↔ üretilen liste iki yönlü eşitliği;
+    **180 module jar'ı ∧ 172 dışlanan artifactId**, standart ve soap çiftlerinin ikisinde de).
+  - `test-generate-war-excludes.sh`, `test-no-war-keep.sh`, `test-generator-wiring.sh`,
+    `test-coverage-guard.sh`, `verify-module-coverage.sh`, `./scripts/generate-war-excludes.sh
+    --check` → hepsi geçti.
+  - `test-war-packaging.sh` → geçti (standart tip WAR'ında **6** zeus jar'ı — `zeus-sms`
+    dahil —, WAR'da CXF **sıfır**: CXF artık WAR'a değil `com.zeus`'a gider).
+  - `test-war-packaging-soap.sh` → geçti (SOAP tipi WAR'ında da CXF **sıfır**, yalnız `zeus-*`).
+  - **Kaldırılan guard'lar** (mekanizma silindiği için artık yok): eski iki-property tutarlılık
+    guard'ı (`zeus.descriptor.extra.modules` ↔ `zeus.war.packaging-excludes.with-soap`
+    eşleşmesini denetleyen test) — property'lerin ikisi de silindiği için denetlenecek bir şey
+    kalmadı.
 
-## Çözüm: `${zeus.war.packaging-excludes.with-soap}` — WAR paketleme boşluğu KAPANDI
+## Tarihsel: WAR paketleme çelişkisi ve `${zeus.war.packaging-excludes.with-soap}` çözümü (artık geçersiz)
 
-Yukarıdaki "önce kapatılacak boşluk" ve Task 6'nın uçtan uca doğrulaması, tasarımda ele
-alınmamış bir çelişki ortaya çıkarmıştı: `19-war-paketleme-module-farkindaligi.md`'nin denylist
-kuralı `zeus-parent`'ın (standart tip) ince-WAR dışlama regex'ini **yalnız
-`zeus-wildfly-module`'ün** (`com.zeus`'un) kapanışından üretiyordu; bu doküman ise "CXF
-`com.zeus.soap`'ta kalır, uygulama opt-in eder" diyordu — örtük varsayım CXF'in WAR'da hiç
-olmamasıydı. Standart tip bir uygulama `com.zeus.soap`'ı opt-in import ettiğinde bu iki kural
-birlikte çalışmıyordu: CXF `com.zeus`'ta değil (yalnız `com.zeus.soap`'ta), `zeus-parent`'ın
-dışlama listesi `com.zeus.soap`'un varlığından habersizdi, dolayısıyla CXF'in kapanışı
-denylist'ten kaçıp WAR'a giriyordu — doküman 19'un kuralına göre **doğru** davranış, ama bu
-dokümanın **örtük varsayımına aykırı**. Ölçülen sayı (Task 6/7, düzeltmeden önce): WAR'da
-zeus-* olmayan 18 jar (tamamı CXF yığını).
+> Bu bölüm SADECE tarihsel kayıt içindir — 2026-09-09'da ortaya çıkan ve o gün
+> `zeus.war.packaging-excludes.with-soap` ile "çözülen" bir çelişkiyi anlatır. 2026-09-11'de
+> CXF `com.zeus`'a taşınınca **çelişkinin kendisi ortadan kalktı**: standart tip bir uygulama
+> artık `com.zeus.soap`'ı hiç opt-in import etmiyor (mekanizma kalktı), dolayısıyla "ikinci
+> bir dışlama listesine yönlendirme" ihtiyacı da kalmadı. Aşağıdaki XML uygulanmaz.
 
-**Karar (Task 8):** üçüncü bir üretilmiş liste — `com.zeus ∪ com.zeus.soap` birleşimi —
-`zeus-parent/pom.xml`'e ikinci bir property olarak eklendi: `zeus.war.packaging-excludes.with-soap`
-(değeri `zeus-soap-parent`'ın kullandığı `list_soap()` çıktısıyla **birebir aynı**; üretici
-`scripts/generate-war-excludes.sh`, bkz. `19-war-paketleme-module-farkindaligi.md`). Opt-in
-eden bir standart-tip uygulama **iki satır** yazar:
+O gün, "önce kapatılacak boşluk" ve Task 6'nın uçtan uca doğrulaması bir çelişki ortaya
+çıkarmıştı: `19-war-paketleme-module-farkindaligi.md`'nin denylist kuralı `zeus-parent`'ın
+ince-WAR dışlama regex'ini **yalnız `zeus-wildfly-module`'ün** (`com.zeus`'un) kapanışından
+üretiyordu; standart tip bir uygulama `com.zeus.soap`'ı opt-in import ettiğinde CXF'in kapanışı
+bu listeden kaçıp WAR'a giriyordu. Çözüm olarak üçüncü bir üretilmiş liste
+(`zeus.war.packaging-excludes.with-soap`, `com.zeus ∪ com.zeus.soap` birleşimi) eklenmiş ve
+opt-in eden uygulamalardan **iki satır** yazması istenmişti (descriptor import + dışlama listesi
+yönlendirmesi) — ikinci satır unutulursa çift kopya / `LinkageError` riski doğardı.
 
-```xml
-<properties>
-    <!-- 1) module'ü descriptor'a alır -->
-    <zeus.descriptor.extra.modules>&lt;module name="com.zeus.soap" slot="${zeus.soap.module.slot}"
-        services="import" meta-inf="import" annotations="true"/&gt;</zeus.descriptor.extra.modules>
-    <!-- 2) o module'ün jar'larını WAR'dan da dışlar -->
-    <zeus.war.packaging-excludes>${zeus.war.packaging-excludes.with-soap}</zeus.war.packaging-excludes>
-</properties>
-```
-
-İkinci satır olmadan birinci satır tek başına yeterli **değildir** — CXF hem
-`com.zeus.soap` module'ünden gelir hem WAR'da `WEB-INF/lib`'te taşınır: ikinci-kopya
-durumu, `08-wildfly-module-dagitim.md`'nin `ClassCastException`/`LinkageError` riski
-dediği tam senaryo. **İkisinin birlikte yazılması uygulamanın sorumluluğudur** — bu,
-mekanizmanın kabul edilmiş zayıflığıdır; framework bunu POM düzeyinde zorunlu kılamaz
-(iki bağımsız property, biri diğerine Maven seviyesinde bağlı değil). Bu insan hatasını
-**deploy öncesi yakalanabilir** hâle getirmek için `scripts/verify-module-coverage.sh`'a
-üçüncü bir kontrol eklendi (Task 9): descriptor `com.zeus.soap` import ediyorsa ama WAR'ın
-`WEB-INF/lib`'inde `cxf-*` jar'ı varsa guard KIRMIZI döner ve çözümü söyler ("
-`zeus.war.packaging-excludes`'u `${zeus.war.packaging-excludes.with-soap}`'a yönlendirin").
-Kırmızı→yeşil gösterimi ve komut kanıtı: `.superpowers/sdd/2026-09-09-zeus-sms/task-9-report.md`.
-
-**Ölçülen sonuç** (`spring-wildfly-arch`, standart tip, opt-in `com.zeus.soap`, 2026-09-09'da bu
-görevde yeniden ölçüldü):
-
-```
-$ unzip -l target/*.war | grep -c 'WEB-INF/lib/cxf-'
-0
-$ unzip -l target/*.war | grep 'WEB-INF/lib/' | awk '{print $4}' | grep -c '^WEB-INF/lib/zeus-'
-6
-```
-
-CXF **10 → 0** (satır ikisi eklenmeden önceki ara durumda 10 CXF jar'ı vardı — descriptor
-opt-in'i zaten yazılmış ama dışlama satırı henüz eklenmemişken; bkz. Task 8 raporu), WAR'da
-kalan **tam 6** `zeus-*` jar'ı (`zeus-ai`, `zeus-base`, `zeus-database`, `zeus-logger`,
-`zeus-service`, `zeus-sms`). `zeus-soap-parent`'ın davranışı değişmedi (kendi
-`MARK_BEGIN/MARK_END` bloğunu kullanır, bu ikinci blok ona dokunmaz).
-
-**Çalışma zamanı garantisi hâlâ gözlemsel:** CXF sınıflarının `com.zeus.soap` module
-classloader'ından yüklendiği (WAR'ın kendi bundled kopyasından değil) Task 6'nın uçtan uca
-deploy'unda stack-frame önekiyle (`com.zeus.soap//org.apache.cxf...`) doğrulandı; bu, WAR'da
-ikinci bir CXF kopyası **olmadığı** için artık zaten geçerli değil (ikinci kopya bu mekanizmayla
-engelleniyor) — ama guard'ın kendisi kurulum zamanı bir dosya-sistemi kontrolüdür, WildFly'ın
-modül çözümleme sırasına dair bir sözleşme değildir.
+2026-09-11'de bu tasarımın **kendisi** kaldırıldı: `com.zeus`'un dışlama listesi zaten CXF'i
+kapsıyor (CXF artık `com.zeus`'un kapanışında), `com.zeus.soap` opt-in'i hiç yapılmadığından
+ikinci listeye de gerek kalmadı. Detay ve ölçümler: `19-war-paketleme-module-farkindaligi.md`.
 
 ## İlgili
 
-- `08-wildfly-module-dagitim.md` — CXF'in neden ayrı module'de olduğu
-- `10-versiyonlu-slot-uretilen-descriptor.md` — `zeus.descriptor.extra.modules` mekanizması
+- `08-wildfly-module-dagitim.md` — CXF'in neden artık `com.zeus`'ta olduğu (önceki "ayrı
+  module'e ait" kararının neden tersine döndüğü) + `com.zeus.soap`'ın boş module olmasının
+  ve `empty-index`'in gerekçesi
 - `14-uygulama-tipi-parentlar.md` — tip parent'ları, SOAP hattı
 - `18-correlation-id.md` — istemci tarafı damga deseni
-- `19-war-paketleme-module-farkindaligi.md` — WAR paketleme denylist'i
+- `19-war-paketleme-module-farkindaligi.md` — tek üretilmiş WAR dışlama listesi, iki yönlü guard

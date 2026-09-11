@@ -21,9 +21,23 @@
 # AĞACI DEĞİL, SUNUCUDA GERÇEKTEN DURAN dizindir.
 #
 # MUAF KÜME (sabit kuyruk): ojdbc/orai18n/ucp, jakarta.*-api, lombok, jarmode, gömülü
-# tomcat. Bunlar WAR'dan BİLEREK atılır ama module'e de KONMAZ — WildFly'ın KENDİ server
-# module'lerinden gelirler (ya da runtime'da hiç gerekmezler). Kuyruğun TEK KAYNAĞI
-# üreticidir (`generate-war-excludes.sh --print fixed-tail`); buraya KOPYALANMAZ.
+# tomcat. Bunlar B tarafında (dışlanan artifactId sayımı) muaf tutulur — ÇOĞU WAR'dan
+# BİLEREK atılır VE module'e de KONMAZ (WildFly'ın KENDİ server module'lerinden gelirler
+# ya da runtime'da hiç gerekmezler). İKİ İSTİSNA VAR (ölçüldü): `jakarta.mail-api` ve
+# `tomcat-embed-el` FİİLEN module'e de GİRER (EXCLUDE_REGEX'in dar jakarta listesi mail'i
+# kapsamaz; gömülü Tomcat'in yalnız `-el` alt-jar'ı module kapanışına sızar) — bu ikisi B
+# sayımından (muafiyet nedeniyle) düşse de A tarafında (sunucudaki gerçek jar dosyaları)
+# hâlâ ölçülür ve eşleşmeleri A \ B kontrolünden geçer (tam regex'in İÇİNDE hâlâ yer
+# alırlar). Kuyruğun TEK KAYNAĞI üreticidir (`generate-war-excludes.sh --print
+# fixed-tail`); buraya KOPYALANMAZ.
+#
+# KAPSAM SINIRI: com.zeus.soap TEK BAŞINA hiç ölçülmez, yalnız com.zeus ∪ com.zeus.soap
+# BİRLEŞİMİ içinde (SOAP çifti). Sonuç: bir jar HER İKİ module'de BİRDEN dursa (tam da
+# install-zeus-module.sh'ın --module soap küme-farkı adımının önlemesi gereken çift kopya)
+# bu guard bunu YAKALAMAZ — birleşimde jar bir kez sayılır, iki module'e dağılmış olması
+# fark etmez. Çift kopyanın kendisi (aynı jar'ın iki module dizininde fiziksel olarak
+# durması) ayrı bir denetim gerektirir; bu guard yalnız module(ler) ↔ liste eşitliğini
+# ölçer, module'ler arası ayrıklığı ölçmez.
 #
 # SESSİZ YEŞİL YASAK: mvn düşerse, üretilen liste boşsa ya da module dizininde hiç jar
 # yoksa bu bir ÖLÇÜM HATASIDIR ve guard KIRMIZI döner — "ölçemedim" asla "sorun yok"
@@ -161,8 +175,15 @@ if a_minus_b:
 if b_minus_a:
     rc = 1
     print("  ❌ [%s] B \\ A — listede VAR ama module'de KARŞILIĞI YOK (%d):" % (label, len(b_minus_a)))
-    for a in b_minus_a:
+    # Sınırsız çıktı büyük drift'te (ör. yanlış WILDFLY_HOME/SLOT — tüm liste "eksik"
+    # görünür) yüzlerce satır basar (ölçüldü: sentetik bir koşuda 172 artifactId iki kez
+    # basılmıştı). Terminali/raporu boğmadan yine de teşhis edilebilir kalması için ilk
+    # ~20 ile sınırlanır; kalan sayı ayrıca bildirilir.
+    CAP = 20
+    for a in b_minus_a[:CAP]:
         print("       - %s" % a)
+    if len(b_minus_a) > CAP:
+        print("       … ve %d tane daha" % (len(b_minus_a) - CAP))
     print("     → bu jar'lar WAR'dan SİLİNİR ama sunucuda onları sağlayan hiçbir şey yok")
     print("       → NoClassDefFoundError.")
     print("     Çözüm: ./scripts/install-zeus-module.sh  (module listeden GERİ kalmış)")

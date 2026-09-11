@@ -200,10 +200,46 @@ if [[ ! -f "${JANDEX_JAR}" ]]; then
     exit 1
 fi
 echo ">> Jandex index gömülüyor (${copied} jar)..."
+# Sessiz "uyarı basıp devam et" YASAK — bu, 4b'de düzeltilen OOM'un TAM AYNI ailesinden bir
+# arızadır. HER jar için embed başarısız olursa module'de HİÇ jandex.idx kalmaz → 4b'nin
+# önlediği geri düşüş (calculateModuleIndex) devreye girer → ${copied} jar'ın TAMAMI ham
+# indexlenir → OutOfMemoryError. BAZI jar'lar için başarısız olursa daha sinsi bir arıza
+# oluşur: hızlı yol (ModuleIndexBuilder) yine de çalışır ama TAMAMLANMAMIŞ bir kompozit index
+# üretir — build KIRMIZI vermez, deploy KIRMIZI vermez, @HandlesTypes taraması (Spring SCI ->
+# WebApplicationInitializer) o jar'lardaki sınıfları SESSİZCE KAÇIRIR. Bu yüzden ilk embed
+# hatasında HARD FAILURE (yalnız-sonda-doğrula değil): eksik/yarım index'li bir module hiç
+# kurulmasın, sunucuya dokunulmasın.
+#
+# SADECE ÇIKIŞ KODU YETMEZ — ÖLÇÜLDÜ: jandex ARACININ KENDİSİ, geçersiz/bozuk bir jar'a "-m"
+# ile embed denendiğinde stacktrace basıp yine de EXIT 0 ile çıkabiliyor (scratch'te
+# doğrulandı: bozuk bir jar'a karşı `java -jar jandex-3.2.0.jar -m` "zip END header not
+# found" stacktrace'i basıp `$?`'yi 0 bırakıyor). Bu yüzden `$?` denetimi TEK BAŞINA
+# YETERSİZDİR; her embed'den SONRA jar'ın GERÇEKTEN META-INF/jandex.idx içerdiği `jar tf`
+# ile AYRICA doğrulanır — bu ikinci kontrol, bu ailedeki arızayı gerçekten yakalayan taraftır.
 for jar in "${MODULE_DIR}"/*.jar; do
-    java -jar "${JANDEX_JAR}" -m "${jar}" >/dev/null 2>&1 || echo "   uyarı: index gömülemedi: $(basename "${jar}")"
+    jandex_rc=0
+    if ! jandex_err="$(java -jar "${JANDEX_JAR}" -m "${jar}" 2>&1 >/dev/null)"; then
+        jandex_rc=$?
+    fi
+    if (( jandex_rc != 0 )) || ! jar tf "${jar}" 2>/dev/null | grep -qx 'META-INF/jandex.idx'; then
+        echo "HATA: jandex index gömülemedi/doğrulanamadı: $(basename "${jar}")" >&2
+        echo "      Ne yapılmaya çalışılıyordu: '${JANDEX_JAR} -m' ile jar'ın İÇİNE" >&2
+        echo "      META-INF/jandex.idx gömülüyordu (WildFly'ın hızlı-yol annotation index" >&2
+        echo "      taraması [ModuleIndexBuilder] bunu okur), sonra 'jar tf' ile jar'ın İÇİNDE" >&2
+        echo "      o dosyanın FİİLEN var olduğu doğrulanıyordu." >&2
+        echo "      Sessizce atlanırsa (eski davranış) TÜM jar'larda başarısız olursa module'de" >&2
+        echo "      HİÇ jandex.idx kalmaz ve WildFly geri düşüşe (calculateModuleIndex) düşer ->" >&2
+        echo "      ${copied} jar'ın TAMAMI ham indexlenir -> OutOfMemoryError (bkz. 4b adımı)." >&2
+        echo "      BAZI jar'larda başarısız olursa hızlı yol TAMAMLANMAMIŞ bir kompozit index" >&2
+        echo "      üretir ve @HandlesTypes taraması o jar'lardaki sınıfları SESSİZCE KAÇIRIR." >&2
+        echo "      araç çıkış kodu: ${jandex_rc}  (0 olması BAŞARI ANLAMINA GELMEZ — bkz. yukarıdaki" >&2
+        echo "      ölçülmüş not; asıl kanıt jar İÇİNDE META-INF/jandex.idx'in var olmasıdır)." >&2
+        echo "      java çıktısı: ${jandex_err:-<boş>}" >&2
+        echo "      Olası nedenler: bozuk/kilitli jar dosyası, disk dolu, java/jandex sürüm uyuşmazlığı." >&2
+        exit 1
+    fi
 done
-echo ">> Jandex index tamam"
+echo ">> Jandex index tamam (${copied} jar'ın tamamına gömüldü, her biri doğrulandı)"
 
 # --- 4b) JAR'SIZ MODULE: BOŞ AMA GEÇERLİ BİR ANNOTATION INDEX ŞART ---
 #

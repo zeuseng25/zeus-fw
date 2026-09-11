@@ -3,6 +3,31 @@
 **Durum:** UYGULANDI (2026-09-08). Tasarım kararları ve ölçümler aşağıda; uygulama planı
 `docs/superpowers/plans/2026-09-08-war-paketleme-module-farkindaligi.md`.
 
+> **Güncelleme (2026-09-11) — TEK üretilmiş liste kaldı, ikinci blok kalktı.** Bu dokümanın
+> yazıldığı gün (2026-09-08) yalnız İKİ liste vardı (standard, soap). 2026-09-09'da `zeus-sms`
+> için **ÜÇÜNCÜ** bir liste eklenmişti (`zeus.war.packaging-excludes.with-soap`, aşağıdaki
+> "Üçüncü liste" alt bölümü — artık silindi, tarihsel bilgi için `20-zeus-sms.md`'ye bakın).
+> 2026-09-11'de CXF `zeus-wildfly-module`'e (yani `com.zeus`'a) taşınınca o üçüncü listeye
+> duyulan ihtiyacın **kendisi** ortadan kalktı ve liste + onu üreten opt-in mekanizması
+> (`zeus.descriptor.extra.modules`) **tamamen silindi**. Bugün yalnız TEK bir üretilmiş liste
+> kavramı var: standard ve soap parent'ları AYRI property'ler taşımaya devam ediyor (aşağıdaki
+> "1) Kural tersine döner" bölümündeki tablo hâlâ geçerli), ama CXF artık `com.zeus`'un
+> KENDİ kapanışında olduğundan, ikisinin ÜRETTİĞİ içerik bugün **birebir aynı küme**
+> (ölçüldü: `./scripts/generate-war-excludes.sh --print standard` ile `--print soap` **karakter
+> karakter özdeş**, 193 artifactId). "Kural" tekildir: module'ün verdiğini at; hangi parent'ın
+> hangi module birleşimine baktığı bugün mimari olarak ayrı kalsa da rakamsal fark yok.
+>
+> Bununla birlikte **yeni bir iki yönlü guard** eklendi: `scripts/test-module-liste-esitligi.sh`,
+> `run-guards.sh`'a `wf` etiketiyle kayıtlı. Kurulu module dizini ile üretilen listeyi HER İKİ
+> yönden karşılaştırır — `A \ B` (module'de var, liste yakalamıyor → çift kopya →
+> `LinkageError`) ve `B \ A` (listede var, module'de yok → `NoClassDefFoundError`). Ölçülen
+> (2026-09-11): **180 module jar'ı ∧ 172 dışlanan artifactId — fark YOK**, hem standard hem
+> soap çiftinde (soap çifti `com.zeus ∪ com.zeus.soap` birleşimine bakar; `com.zeus.soap` bugün
+> 0 jar). Guard'ın KAPSAM SINIRI: `com.zeus.soap`'ı TEK BAŞINA hiç ölçmez, yalnız birleşim
+> içinde — aynı jar'ın HER İKİ module'de birden durması (çift kopya) bu guard'dan KAÇAR. Detay,
+> mutasyon kanıtları ve kod: `scripts/test-module-liste-esitligi.sh` başlığı,
+> `08-wildfly-module-dagitim.md`, `.superpowers/sdd/2026-09-11-cxf-com-zeus-ve-script-sertlestirme/task-3-report.md`.
+
 İnce WAR'ın hangi jar'ları taşıyacağı bugün **yanlış tarafta** tanımlı. Kural
 "module'ün verdiğini at" olması gerekirken "zeus- dışındakini at" biçiminde yazılmış.
 Bu doküman kusuru, kararları ve hedef tasarımı kayıt altına alır.
@@ -60,7 +85,7 @@ Bu ikinci sonuç, listenin **runtime'da enjekte edilemeyeceğini**, dolayısıyl
 
 ## Hedef tasarım (B′)
 
-### 1) Kural tersine döner — ÜÇ üretilmiş liste
+### 1) Kural tersine döner — TEK üretilmiş liste, iki taşıyıcı property
 
 `zeus-parent/pom.xml` ve `zeus-soap-parent/pom.xml`, property'yi üretilmiş bir denylist
 olarak taşır:
@@ -72,31 +97,28 @@ olarak taşır:
 
 | Tip | Parent | Atılan küme | WAR'da kalan |
 |---|---|---|---|
-| standard | `zeus-parent` | `com.zeus` (157 artifactId) | `zeus-*` + hiçbir module'de olmayanlar |
-| soap | `zeus-soap-parent` | `com.zeus` ∪ `com.zeus.soap` (157 + 23) | `zeus-*` + hiçbir module'de olmayanlar |
+| standard | `zeus-parent` | `com.zeus` | `zeus-*` + hiçbir module'de olmayanlar |
+| soap | `zeus-soap-parent` | `com.zeus` ∪ `com.zeus.soap` | `zeus-*` + hiçbir module'de olmayanlar |
 | bff | `zeus-bff-parent` | — (boş; fat WAR) | her şey |
 | standalone | `zeus-standalone-parent` | — (boş; fat WAR) | her şey |
 
-**Üçüncü liste — `zeus.war.packaging-excludes.with-soap`** (Task 8, `gelistirmeler/20-zeus-sms.md`):
-`zeus-parent/pom.xml`'e ikinci bir ÜRETİLMİŞ property olarak eklendi. Değeri `soap` listesiyle
-(`com.zeus ∪ com.zeus.soap`) **birebir aynıdır** — ayrı bir hesaplama değil, `list_soap()`'un
-`zeus-parent`'a yazılmış ikinci bir kopyasıdır (`scripts/generate-war-excludes.sh`'ta ayrı bir
-marker çifti: `ZEUS-WAR-EXCLUDES-SOAP:BEGIN/END`). Amacı: **standart tip** bir uygulama
-`zeus.descriptor.extra.modules` ile `com.zeus.soap`'ı opt-in import ederken (örn. `zeus-sms`
-kullanan her uygulama), varsayılan `zeus.war.packaging-excludes` (yalnız `com.zeus`'u atan
-standard liste) CXF'in kapanışından habersiz kalır ve CXF jar'ları WAR'a sızar. Opt-in eden
-uygulama kendi `pom.xml`'inde `zeus.war.packaging-excludes`'ı bu üçüncü listeye **yönlendirir**:
+(Tablodaki artifactId sayıları 2026-09-08'de 157/157+23 idi; CXF `com.zeus`'a taşındıktan
+sonraki güncel sayı için dosyanın en başındaki "Güncelleme" kutusuna bakın — standard ve soap
+bugün **aynı** 193 artifactId'ye denk geliyor, çünkü `com.zeus.soap` küme farkıyla boşaldı.)
 
-```xml
-<zeus.war.packaging-excludes>${zeus.war.packaging-excludes.with-soap}</zeus.war.packaging-excludes>
-```
+İki parent iki AYRI property taşımaya devam eder (mimari olarak ayrı kalırlar — `zeus-soap-parent`
+kendi `com.zeus ∪ com.zeus.soap` birleşimini hesaplar), ama içerikleri bugün rastlantı değil,
+**kümelerin gerçekten eşit olmasının** doğal sonucu olarak özdeştir.
 
-`zeus-soap-parent`'ın kendi listesinden **farklı bir mekanizma**: SOAP tipi uygulamalar zaten
-`zeus-soap-parent`'ın kendi `MARK_BEGIN/MARK_END` bloğunu (property adı aynı,
-`zeus.war.packaging-excludes`) miras alır ve bu üçüncü listeye hiç ihtiyaç duymaz. Üçüncü liste
-yalnız **standart parent'ta kalıp opt-in eden** uygulamalar içindir — o yüzden `zeus-parent`'a
-(soap parent'a değil) yazılır. Ölçülen sonuç ve iki-property tutarlılık guard'ı için
-`gelistirmeler/20-zeus-sms.md`'ye bakın.
+**Tarihsel not — bir ZAMANLAR üçüncü bir liste vardı, artık YOK.** 2026-09-09'da `zeus-sms`
+için `zeus.war.packaging-excludes.with-soap` adında ÜÇÜNCÜ bir üretilmiş property eklenmişti:
+standart parent'ta kalıp `zeus.descriptor.extra.modules` ile `com.zeus.soap`'ı **opt-in**
+import eden uygulamalar (o zamanki CXF-istemci deseni) için, varsayılan standard listenin
+CXF'in kapanışından habersiz kalmasını telafi ediyordu. 2026-09-11'de CXF `com.zeus`'a
+taşınınca opt-in mekanizmasının **kendisi** silindi (`zeus.descriptor.extra.modules` dahil);
+telafi edilecek bir boşluk kalmadığından bu üçüncü liste de kaldırıldı. Detay:
+`20-zeus-sms.md` → "Tarihsel: WAR paketleme çelişkisi ve `${zeus.war.packaging-excludes.with-soap}`
+çözümü (artık geçersiz)".
 
 **SOAP tipi ayrı liste ZORUNLU.** `zeus-soap-parent` bu property'yi bugün override
 etmiyor, `zeus-parent`'tan miras alıyor. Allowlist'te bu zararsızdı (zaten her şey
@@ -225,7 +247,9 @@ Ayrıca: altı test (`test-generate-war-excludes.sh`, `test-war-packaging.sh`,
 
 ## İlgili
 
-- `08-wildfly-module-dagitim.md` — module üretimi, `EXCLUDE_REGEX`, sürücü kuralı
+- `08-wildfly-module-dagitim.md` — module üretimi, `EXCLUDE_REGEX`, sürücü kuralı, CXF'in
+  `com.zeus`'a neden taşındığı
 - `10-versiyonlu-slot-uretilen-descriptor.md` — üretilen descriptor, slot lockstep
 - `14-uygulama-tipi-parentlar.md` — tip parent'ları, fat WAR tipleri
 - `17-module-yenileme-runbook.md` — module yenileme akışı (üretici buraya bağlanır)
+- `20-zeus-sms.md` — kaldırılan üçüncü liste ve opt-in mekanizmasının tarihçesi

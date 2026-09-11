@@ -132,15 +132,20 @@ tutulmalıydı.
 ### Base ayrımı neden (henüz) gerekli değil
 
 Mekanizma/politika ayrımı **zaten yapılmış** — property indirection'ı tam olarak bunun için
-var. `zeus-parent`'ta tipe özel olan yalnızca **5 property tanımı**:
+var. `zeus-parent`'ta tipe özel olan yalnızca **4 property tanımı**:
 
 | Property | Kime ait |
 |---|---|
 | `zeus.war.packaging-excludes` | ince WAR (değeri ÜRETİLİR — `scripts/generate-war-excludes.sh`) |
-| `zeus.war.packaging-excludes.with-soap` | ince WAR + `com.zeus.soap` opt-in'i (aynı üreteç) |
 | `zeus.module.slot` | com.zeus'a bağlanan tipler |
-| `zeus.soap.module.slot` | com.zeus.soap'ı opt-in eden her tip (platform sabiti) |
+| `zeus.soap.module.slot` | SOAP tipinin KENDİ `com.zeus.soap` bağımlılığı için (platform sabiti) |
 | `zeus.descriptor.dir` | standart tip varsayılanı |
+
+> `zeus.war.packaging-excludes.with-soap` bu tabloda ARTIK YOK: 2026-09-09'da `zeus-sms` için
+> eklenmiş, standart tipte kalıp `com.zeus.soap`'ı **opt-in** eden uygulamalar içindi.
+> 2026-09-11'de CXF `com.zeus`'a taşınınca bu opt-in mekanizmasının **kendisi**
+> (`zeus.descriptor.extra.modules` dahil) tamamen kaldırıldı; property artık pom'larda hiç
+> geçmiyor. Detay: `20-zeus-sms.md`, `19-war-paketleme-module-farkindaligi.md`.
 
 > `zeus.war.keep` bu tabloda ARTIK YOK: denylist polaritesine geçişte kaldırıldı. Bugün
 > module'de olmayan bir bağımlılık zaten WAR'da taşınır, dolayısıyla "bundle istisnası"
@@ -193,16 +198,27 @@ uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bf
 - **`zeus-soap` modülü:** CXF starter'ın kurduğu Bus/CXFServlet üstüne
   `ZeusSoapEndpointRegistrar` — `@WebService` işaretli bean'leri `/services/<beanAdı>`
   altında otomatik yayınlar. Uygulama yalnızca `@WebService @Component` sınıf yazar.
-- **`com.zeus.soap` WildFly module'ü:** sözleşmesi `zeus-soap-wildfly-module`; üretimi
-  `./scripts/install-zeus-module.sh --module soap [--slot X] [--base-slot Y]`.
-  Jar seti = CXF kapanışı **EKSİ** com.zeus kapanışı (**küme farkı** — script temel kapanışı
-  da çözüp aynı ada sahip jar'ları atlar; çift jar/LinkageError imkânsızlaşır. Provided
-  hilesi kullanılmadı: CXF, Spring jar'larını kendi compile yolundan da çektiği için
-  nearest-wins belirsiz olurdu). 23 jar: cxf-core/rt-*, wsdl4j, woodstox, xmlschema, neethi...
-  module.xml, `com.zeus`'a (base-slot) ve `jakarta.xml.ws/soap/bind/...` server API'lerine bağımlıdır.
-- **Kapsam denetimi:** `verify-module-coverage.sh`, uygulamanın com.zeus.soap'ı **fiilen opt-in
-  edip etmediğine** bakıyor: descriptor'da module import'u veya dışlama listesinde CXF var mı.
-  Öyleyse denetimi **com.zeus ∪ com.zeus.soap birleşimine** karşı yapar.
+- **`com.zeus.soap` WildFly module'ü — BUGÜN BOŞ (0 jar, 2026-09-11'den beri).** Sözleşmesi
+  `zeus-soap-wildfly-module`; üretimi `./scripts/install-zeus-module.sh --module soap [--slot X]
+  [--base-slot Y]`. Jar seti = CXF kapanışı **EKSİ** com.zeus kapanışı (**küme farkı** — script
+  temel kapanışı da çözüp aynı ada sahip jar'ları atlar; çift jar/LinkageError imkânsızlaşır.
+  Provided hilesi kullanılmadı: CXF, Spring jar'larını kendi compile yolundan da çektiği için
+  nearest-wins belirsiz olurdu). **2026-09-08'de** 23 jar taşıyordu (cxf-core/rt-*, wsdl4j,
+  woodstox, xmlschema, neethi...); **2026-09-11'de** CXF `com.zeus`'un KENDİ kapanışına
+  taşındığından küme farkı **∅**'dir — SOAP tipi hâlâ bu module'ü import eder (aşağıdaki
+  "Kapsam denetimi" ve `descriptor-soap` şablonu değişmedi) ama artık içi boştur; module.xml
+  `com.zeus`'a (base-slot) ve `jakarta.xml.ws/soap/bind/...` server API'lerine bağımlıdır.
+  Boş bir module'ün kendi Jandex index'i olmadığı için WildFly'ın deploy zamanı OOM'a
+  düşmemesi ayrı bir düzeltme gerektirdi (`empty-index/` — bkz.
+  `08-wildfly-module-dagitim.md` → "com.zeus.soap — artık BOŞ bir module").
+- **Kapsam denetimi:** `verify-module-coverage.sh`, uygulamanın **tipinin** SOAP olup
+  olmadığına bakıyor (üretilen descriptor `com.zeus.soap`'ı fiilen import ediyor mu —
+  `DESC_SOAP`). Öyleyse denetimi **com.zeus ∪ com.zeus.soap birleşimine** karşı yapar.
+  ESKİDEN (opt-in mekanizması varken) burada AYRICA dışlama listesinde `cxf-core` aranarak
+  standart tipin de opt-in etmiş olabileceği bir ikinci iz tutulurdu; CXF `com.zeus`'a
+  taşınınca standart listede de doğal olarak `cxf-core` belirmeye başladığından bu ikinci iz
+  HER ince WAR'ı "SOAP kullanıyor" sayardı — yanlış pozitif. Bu yüzden tamamen kaldırıldı;
+  ölçüt artık TEK ve doğrudan: descriptor'ın kendisi.
 
 ## BFF hattı (Spring Cloud Gateway Server MVC)
 

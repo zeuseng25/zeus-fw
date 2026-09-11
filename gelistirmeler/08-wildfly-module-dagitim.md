@@ -25,7 +25,7 @@ Module ile ilgili her şey framework'e (platform) aittir.
 
 | Yetenek | Sahip | Nasıl zorlanır |
 |---------|-------|----------------|
-| WAR'dan 3. parti jar'ı dışlama (ince WAR) | **Framework** | `zeus-parent` `maven-war-plugin` `packagingExcludes` → `${zeus.war.packaging-excludes}`. Değer **ÜRETİLİR**, elle yazılmaz: `scripts/generate-war-excludes.sh` onu paylaşımlı module'ün bağımlılık sözleşmesinden basar (bugün 168 alternatif = 159 artifactId + 9 sabit-kuyruk kalıbı). Uygulama configsiz miras alır. |
+| WAR'dan 3. parti jar'ı dışlama (ince WAR) | **Framework** | `zeus-parent` `maven-war-plugin` `packagingExcludes` → `${zeus.war.packaging-excludes}`. Değer **ÜRETİLİR**, elle yazılmaz: `scripts/generate-war-excludes.sh` onu paylaşımlı module'ün bağımlılık sözleşmesinden basar (2026-09-11'de ölçüldü: **193 alternatif = 184 module kapanışından + 9 sabit-kuyruk kalıbı**; standard ve soap listeleri bugün karakter karakter özdeş — CXF `com.zeus`'a taşındığı için, bkz. aşağıdaki "Neden CXF artık `com.zeus`'ta"). Uygulama configsiz miras alır. |
 | Paylaşımlı `com.zeus` module'ünü oluşturma/güncelleme | **Framework** | `zeus-fw/scripts/install-zeus-module.sh` yalnızca bu repodadır; uygulamalarda module üretim aracı **yoktur**. |
 | Module'e jar ekleme | **Framework** | İçerik `zeus-wildfly-module` bağımlılık sözleşmesinden gelir; uygulama `modules/`'a yazmaz. |
 | WAR deploy | **Uygulama** | Her uygulamanın kendi `scripts/deploy.sh`'ı yalnızca `standalone/deployments/`'a kopyalar. |
@@ -138,7 +138,11 @@ gömülü Tomcat `provided` ile dışlanır — WildFly Undertow kullanır.)
 
 `zeus-redis` ve `zeus-batch` **bilerek dışarıdadır** (+50 ve +33 artefakt; ikisi de iskelet ve
 tüketeni yok — paylaşımlı module'e girmeleri, kullanmayan tüm uygulamalara restart lockstep
-maliyeti bindirir). `zeus-soap` da girmez: CXF yığını ayrı `com.zeus.soap` module'üne aittir.
+maliyeti bindirir). `zeus-soap` (framework jar'ının kendisi) da girmez — hiçbir `zeus-*` jar'ı
+girmez (genel kural, `EXCLUDE_REGEX`). **CXF'in KENDİSİ (3. parti yığın) ise 2026-09-11'den beri
+`com.zeus`'un içindedir** — `zeus-wildfly-module/pom.xml` `cxf-spring-boot-starter-jaxws`'ı
+doğrudan bildirir. Bu, önceki bir kararın (CXF ayrı `com.zeus.soap` module'ünde kalsın)
+**tersine dönmesidir**; güncel gerekçe aşağıdaki "Neden CXF artık `com.zeus`'ta" bölümünde.
 
 **Module'e hiç bağlanmayan uygulamalar.** Birleşim kuralının doğal sınırı şudur: yalnız bir
 uygulamanın kullandığı ve module'e konsa herkese dayatılacak kütüphaneler (tipik olarak
@@ -217,17 +221,91 @@ Süreç (staging geçidi, gate'ler, rollback): `gelistirmeler/09-cve-guvenlik-ya
 2. Varsa `zeus-wildfly-module/pom.xml`'e ekle.
 3. `install-zeus-module.sh` ile module'ü yeniden üret + WildFly restart.
 4. Uygulamanın `deploy.sh`'ı ile WAR'ı deploy et.
-## com.zeus.soap — SOAP tipinin ek module'ü (özet)
 
-SOAP uygulamaları (parent: `zeus-soap-parent`) CXF yığınını AYRI bir paylaşımlı module'den alır:
+## Neden CXF artık `com.zeus`'ta (2026-09-11, önceki karardan DÖNÜŞ)
+
+Bu dokümanın önceki sürümleri "CXF yığını ayrı `com.zeus.soap` module'üne aittir" diyordu.
+2026-09-11'de bu karar **tersine döndü**: `zeus-wildfly-module/pom.xml`
+`cxf-spring-boot-starter-jaxws`'ı doğrudan bildiriyor; CXF artık `com.zeus`'un **kendi**
+runtime kapanışında.
+
+**Eski gerekçe neydi:** SMS'i (veya başka bir SOAP istemcisini) hiç kullanmayan uygulamalar
+CXF'in ~13 jar'lık kapanışını taşımasın, `com.zeus` lockstep'i (her değişiklikte tüm
+uygulamaların ortak restart maliyeti) ağırlaşmasın diye CXF ikinci, opt-in bir module'de
+(`com.zeus.soap`) tutuluyordu (`20-zeus-sms.md`'deki ilk karar).
+
+**Yeni gerekçe — bu maliyeti göze almaya değer:** ikinci module'ün varlığı, onu kullanan HER
+sunucuya **ikinci bir kurulum adımı** (`install-zeus-module.sh --module soap`) dayatıyordu ve bu
+adım unutulabilir bir operasyonel adımdı — SOAP tipi bir uygulama deploy edilmeden önce
+`com.zeus.soap` slot'unun da kurulu olduğunu ayrıca doğrulamak gerekiyordu
+(`verify-module-coverage.sh`'ın "slot kurulu mu?" kontrolü bunun için vardı). `com.zeus` ZATEN
+her sunucuda kuruludur (module'ler arasında EN AZ opsiyonel olanı) — CXF'i oraya taşımak
+ikinci kurulum adımını YAPISAL olarak imkânsız kılıyor: artık kurulacak "ikinci bir şey" yok.
+Bedeli ölçüldü ve kabul edildi: `com.zeus` 157 → **180** jar'a büyüdü (13'ü CXF) — SMS'i hiç
+kullanmayan bir uygulama da bu 13 jar'ı classpath'inde görür (zararsız — module geniş,
+uygulama dar kuralı zaten böyle işliyor, bkz. yukarıdaki "Module geniştir, uygulama dardır").
+
+## com.zeus.soap — artık BOŞ bir module (küme farkı ∅) — ve bunun İKİ sonucu
+
+SOAP uygulamaları (parent: `zeus-soap-parent`) hâlâ `com.zeus.soap`'ı import eder:
 
 ```bash
 ./scripts/install-zeus-module.sh --module soap [--slot X] [--base-slot Y]
 ```
 
-- Sözleşme: `zeus-soap-wildfly-module/pom.xml` (cxf-spring-boot-starter-jaxws; sürüm BOM'dan).
-- Jar seti = CXF kapanışı **EKSİ** com.zeus kapanışı (script küme farkı uygular → çift jar yok).
-- Üretilen module.xml `com.zeus`'a (--base-slot) bağımlıdır; slot politikası com.zeus ile aynıdır.
-- Kapsam denetimi: `verify-module-coverage.sh` SOAP uygulamalarında com.zeus ∪ com.zeus.soap birleşimine bakar.
+ama içeriği artık **0 jar**dır. Script CXF'in TAM kapanışını toplar, sonra `com.zeus`'un
+kapanışıyla **küme farkı** alır (`CXF kapanışı EKSİ com.zeus kapanışı`); CXF `com.zeus`'a
+taşındığından beri bu fark **boş küme**dir (ölçüldü, 2026-09-11: 180 jar'lık ham CXF kapanışının
+tamamı — 64 jar — "temel com.zeus module'ünde zaten var" diye atlandı, 0 jar kopyalandı).
 
-Detay: `gelistirmeler/14-uygulama-tipi-parentlar.md`.
+`com.zeus.soap` **niçin hâlâ var, tamamen silinmedi:** SOAP tipinin descriptor'ı
+(`zeus-war-defaults/.../descriptor-soap/jboss-deployment-structure.xml`) hâlâ
+`<module name="com.zeus.soap" .../>` import eder ve `webservices` subsystem'ini dışlar — bu
+yapısal ayrım (SOAP tipi vs standart tip) korunuyor; module'ün boş olması bu ayrımı geçersiz
+kılmıyor, yalnız o ayrımın taşıdığı jar sayısını sıfıra indiriyor. `test-module-liste-esitligi.sh`
+de bunu bir "eksiklik" değil **meşru bir durum** olarak ele alır (soap çifti `com.zeus ∪
+com.zeus.soap` birleşimine bakar; birleşim zaten `com.zeus`'un kendisiyle özdeştir).
+
+**Boş bir module'ün KENDİ BAŞINA yeterli olmadığı — bu satırla DURMAYIN.** Bir module'ün
+"0 jar" olması, o module'ü kurmanın zararsız bir hiç-bir-şey-yapmama olduğu anlamına GELMEZ.
+2026-09-11'de gerçek bir deploy denemesinde bu iki gerçek şu şekilde birleşti ve gerçek bir
+regresyona yol açtı — ikisi COUPLE edilmeden okunursa yeniden açılabilir:
+
+1. **Boş dizinde `*.jar` glob'u kendi metniyle genişler** (bash varsayılanı) →
+   `<resource-root path="*.jar"/>` module.xml'e SAHTE bir satır olarak yazılıyordu → WildFly
+   böyle bir module'ü hiç yüklemiyor ("resource root not found") → SOAP tipi HER deploy
+   düşerdi. Düzeltme: `shopt -s nullglob` + ham kapanışın (küme farkından ÖNCEKİ) boş olması
+   ayrı bir hata olarak ele alınır (ölçüm hatasını meşru ∅ farkından ayırmak için).
+2. **Jar'sız bir module'ün gömülü Jandex index'i de yoktur** — ve WildFly'ın `AnnotationIndexSupport`
+   sınıfı bir module'de HİÇ `META-INF/jandex.idx` bulamazsa, HIZLI yoldan (module classloader'ından
+   index okuma) GERİ DÜŞÜYOR: module'ün erişebildiği TÜM `.class` kaynaklarını —  **bağımlı olduğu
+   `com.zeus`'un 180 jar'ı DAHİL** — TEK bir Jandex `Indexer`'da HAM olarak indexliyor. 512m
+   varsayılan heap'te bu **`OutOfMemoryError`** ile PARSE fazında patlıyor — yani `com.zeus.soap`
+   BOŞ olduğu İÇİN, ona bağlı SOAP tipi HER deploy düşüyordu (ampirik olarak doğrulandı, stack
+   trace `org.jboss.jandex.Indexer.index` → `AnnotationIndexSupport.calculateModuleIndex`).
+
+**Bu iki gerçek AYRI ele alınamaz: "module artık boş" cümlesi TEK BAŞINA, gelecekte
+`empty-index` mantığını "artık gereksiz karmaşıklık" diye SİLDİRECEK cümledir.** Doğru okuma:
+"module boş OLDUĞU İÇİN, WildFly'ın index bulamayınca düştüğü geri-düşüş yolu `com.zeus`'un
+TAMAMINI ham tarar; bu yüzden boş bir module'e bile GEÇERLİ (ama boş) bir Jandex index'i
+KOYULMAK ZORUNDADIR." Çözüm — `install-zeus-module.sh`'ın 4b adımı — `copied == 0` olduğunda
+module'e **dizin tipi** bir resource-root (`empty-index/META-INF/jandex.idx`, 21 bayt, 0 sınıf,
+`io.smallrye:jandex:3.2.0` ile üretilir ve WildFly'ın kendi `jandex-3.6.0` `IndexReader`'ıyla
+doğrulanmıştır) ekler; JAR değil DİZİN seçilmesinin nedeni de aynı coupling'in bir parçasıdır:
+module dizinindeki her JAR, `test-module-liste-esitligi.sh`'ın ölçtüğü module↔liste eşitliğinde
+karşılığı olması gereken bir artifact sayılır — sentetik bir jar o eşitliği bozardı; DİZİN bu
+guard'ın kapsamı dışındadır (yalnız `*.jar`'a bakar), dolayısıyla `empty-index/` eşitliği
+etkilemeden index sorununu çözer.
+
+- Sözleşme: `zeus-soap-wildfly-module/pom.xml` (cxf-spring-boot-starter-jaxws; sürüm BOM'dan;
+  CXF kapanışı `com.zeus`'la örtüştüğü için bugün fiilen `com.zeus`'un bir ALT KÜMESİ).
+- Jar seti = CXF kapanışı **EKSİ** com.zeus kapanışı = **bugün ∅** (ölçüldü, 2026-09-11).
+- Üretilen module.xml `com.zeus`'a (--base-slot) bağımlıdır; slot politikası com.zeus ile aynıdır.
+- Kapsam denetimi: `verify-module-coverage.sh` SOAP uygulamalarında com.zeus ∪ com.zeus.soap
+  birleşimine bakar; `test-module-liste-esitligi.sh` (yeni, `wf` etiketli guard) kurulu module(ler)
+  ile üretilen listenin İKİ YÖNLÜ eşitliğini ölçer (`A \ B` → çift kopya riski, `B \ A` →
+  `NoClassDefFoundError` riski). Ölçülen (2026-09-11): **180 module jar'ı ∧ 172 dışlanan
+  artifactId — fark YOK**, hem standard hem soap çiftinde.
+
+Detay: `gelistirmeler/14-uygulama-tipi-parentlar.md`, `.superpowers/sdd/2026-09-11-cxf-com-zeus-ve-script-sertlestirme/task-3-report.md`
+(Bulgu 1 ve Bulgu 2 — bu iki arızanın birebir teşhis kaydı).
