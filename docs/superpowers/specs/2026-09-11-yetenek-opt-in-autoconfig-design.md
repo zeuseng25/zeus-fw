@@ -54,9 +54,14 @@ paket önekleri**.
 
 | Yetenek | Anahtar | İşaretçi sınıf | Sahiplendiği autoconfig önekleri |
 |---|---|---|---|
-| ai | `zeus.ai.enabled` | `com.zeus.framework.ai.ZeusAiAssistant` | `org.springframework.ai.` |
-| database | `zeus.database.enabled` | `com.zeus.framework.database.StoredProcedureExecutor` | `org.springframework.boot.jdbc.autoconfigure.`, `org.springframework.boot.hibernate.autoconfigure.`, `org.springframework.boot.data.jpa.autoconfigure.`, `org.springframework.boot.persistence.autoconfigure.` |
-| soap | `zeus.soap.enabled` | `com.zeus.framework.soap.ZeusSoapEndpointRegistrar` | `org.apache.cxf.spring.boot.autoconfigure.` |
+| ai | `zeus.ai.enabled` | `com.zeus.framework.ai.ZeusAiAutoConfiguration` | `org.springframework.ai.` |
+| database | `zeus.database.enabled` | `com.zeus.framework.database.ZeusDatabaseAutoConfiguration` | `org.springframework.boot.jdbc.autoconfigure.`, `org.springframework.boot.hibernate.autoconfigure.`, `org.springframework.boot.data.jpa.autoconfigure.`, `org.springframework.boot.persistence.autoconfigure.` |
+| soap | `zeus.soap.enabled` | `com.zeus.framework.soap.ZeusSoapAutoConfiguration` | `org.apache.cxf.spring.boot.autoconfigure.` |
+
+İşaretçi olarak her yetenek modülünün **kendi `*AutoConfiguration` sınıfı** seçildi: her modülde
+zaten var, adı modülü birebir tanımlıyor ve iç refactor'lardan (sınıf taşıma, paket değişikliği)
+en az etkilenen sınıf o. İşaretçi sınıf adları `Class.forName` ile **dize olarak** çözülür —
+`zeus-base`'in bu modüllere derleme zamanı bağımlılığı YOKTUR ve olmamalıdır.
 
 **Her zaman serbest** (hiçbir yeteneğe ait değil, veto edilmez): `spring-boot-autoconfigure`
 çekirdeği, `webmvc`, `servlet`, `jackson`, `validation`, `http-client`/`http-codec`/
