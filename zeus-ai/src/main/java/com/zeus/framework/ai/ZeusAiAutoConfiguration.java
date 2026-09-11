@@ -28,7 +28,10 @@ import org.springframework.context.annotation.Bean;
         "org.springframework.ai.model.chat.client.autoconfigure.ChatClientAutoConfiguration"
 })
 @ConditionalOnClass(ChatClient.class)
-@ConditionalOnProperty(prefix = "zeus.ai", name = "enabled", havingValue = "true", matchIfMissing = true)
+// matchIfMissing=false: yetenekler OPT-IN'dir (bkz. com.zeus.framework.autoconfig.ZeusCapabilities).
+// Aynı anahtar hem bu autoconfig'i hem Spring AI'ın 3. parti autoconfig'lerini yönetir —
+// uygulamanın öğrenmesi gereken tek kavram olsun diye.
+@ConditionalOnProperty(prefix = "zeus.ai", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(ZeusAiProperties.class)
 public class ZeusAiAutoConfiguration {
 
