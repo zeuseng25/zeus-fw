@@ -1,0 +1,4 @@
+# Yetenek opt-in filtresi. Spring Boot'un kendi koşul sınıfları da bu anahtarla kayıtlıdır
+# (bkz. spring-boot-autoconfigure!/META-INF/spring.factories).
+org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
+com.zeus.framework.autoconfig.ZeusAutoConfigurationFilter
