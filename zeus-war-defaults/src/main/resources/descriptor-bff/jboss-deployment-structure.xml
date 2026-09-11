@@ -17,8 +17,7 @@
             <subsystem name="jaxrs"/>
         </exclude-subsystems>
         <!-- dependencies bloğu bilinçli olarak YOK: BFF fat WAR'dır, com.zeus kullanılmaz.
-             Bu yüzden zeus.descriptor.extra.modules property'si bu tipte ETKİSİZDİR (yer tutucu
-             yok). Fat WAR'da 3. parti jar'lar zaten WEB-INF/lib'dedir; ayrıca module import
+             Fat WAR'da 3. parti jar'lar zaten WEB-INF/lib'dedir; ayrıca module import
              etmek ÇİFT KOPYA yaratır → ClassCastException. Sürücü çakışmasının çözümü burada
              'provided' scope'tur: gelistirmeler/14-uygulama-tipi-parentlar.md. -->
     </deployment>

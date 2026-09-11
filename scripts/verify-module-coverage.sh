@@ -2,13 +2,11 @@
 #
 # Deploy ön-kontrolü (PLATFORM scripti).
 #
-# DÖRT ŞEYİ denetler:
-#   1) Uygulamanın hedeflediği com.zeus (com.zeus.soap'ı OPT-IN EDEN uygulamalarda ayrıca
+# ÜÇ ŞEYİ denetler:
+#   1) Uygulamanın hedeflediği com.zeus (bir SOAP ENDPOINT'İ YAYINLAYAN uygulamalarda ayrıca
 #      com.zeus.soap) slot'u sunucuda KURULU mu?
 #   2) WAR'da framework'ün ÜRETTİĞİ jboss-deployment-structure.xml var mı?
-#   3) İKİ-PROPERTY TUTARLILIĞI: com.zeus.soap opt-in'i İKİ YÖNLÜ tutarlı mı?
-#      (descriptor import ediyor ⇔ dışlama listesi CXF'i atıyor)
-#   4) TERS KAPSAM: WAR'dan SİLİNEN her artifactId, hedeflenen slot'ta GERÇEKTEN VAR mı?
+#   3) TERS KAPSAM: WAR'dan SİLİNEN her artifactId, hedeflenen slot'ta GERÇEKTEN VAR mı?
 #
 # NOT: "uygulamanın bağımlılığı module'de var mı?" kontrolü KALDIRILDI. Denylist
 # paketlemesinden sonra module'de olmayan bağımlılık WAR'da taşınır (gelistirmeler/
@@ -88,26 +86,30 @@ PASSED=()
 SKIPPED=()
 
 # ─────────────────────────────────────────────────────────────────────────────────────
-# com.zeus.soap OPT-IN'i: uygulamanın NE YAPTIĞINA bakılır, platform sabitine DEĞİL.
+# com.zeus.soap KULLANIMI: uygulamanın NE YAPTIĞINA bakılır, platform sabitine DEĞİL.
 #
-# Eskiden ölçüt `zeus.soap.module.slot` property'sinin ÇÖZÜLMESİYDİ. O property Task 1'de
-# zeus-soap-parent'tan zeus-parent'a taşındı (doğru ve gerekliydi: standart tip uygulamalar
-# da com.zeus.soap'ı opt-in edebilsin diye) — ama böylece HER uygulamada 'main' çözülür
-# hale geldi. Sonuç: com.zeus.soap KURULU OLMAYAN bir sunucuda (yani yalnız REST kullanan,
-# "CXF com.zeus'a girmesin" kararının korumak için var olduğu NORMAL kurulumda) HER ince
-# WAR deploy'u exit 2 ile engelleniyordu (final review, Critical 1).
+# CXF artık paylaşımlı com.zeus module'ünde (zeus-wildfly-module/pom.xml) — bir STANDART
+# tip uygulama SOAP İSTEMCİSİ olarak (zeus-sms gibi) CXF kullanabilir ve bunun için HİÇBİR
+# opt-in YAZMAZ; com.zeus'a zaten bağlıdır. com.zeus.soap module'ü YALNIZ bir uygulama
+# gerçek bir @WebService ENDPOINT'İ YAYINLIYORSA (SOAP TİPİ, zeus-soap-parent) gerekir.
+# Ölçüt bu yüzden TEK ve DOĞRUDANDIR: üretilen descriptor'ın FİİLEN com.zeus.soap'ı
+# import edip etmediği (aşağıda DESC_SOAP).
 #
-# Doğru ölçüt uygulamanın FİİLİ paketleme/descriptor davranışıdır ve iki bağımsız iz bırakır:
-#   (a) descriptor com.zeus.soap'ı import ediyor   → zeus.descriptor.extra.modules yazılmış,
-#   (b) dışlama listesi CXF'i WAR'dan atıyor       → zeus.war.packaging-excludes.with-soap'a
-#                                                     yönlendirilmiş.
-# İkisi UYGULAMANIN SORUMLULUĞUDUR ve BİRLİKTE yazılmalıdır; ikisi arasındaki tutarlılık
-# aşağıda İKİ YÖNLÜ denetlenir.
+# ESKİDEN burada AYRICA bir EXCL_SOAP izi (zeus.war.packaging-excludes içinde 'cxf-core'
+# aranarak) tutulur, USES_SOAP = DESC_SOAP || EXCL_SOAP olurdu ve iki iz arasında
+# "İKİ-PROPERTY TUTARLILIK KONTROLÜ" ile İKİ YÖNLÜ tutarlılık denetlenirdi — o dönemde
+# CXF yalnız opt-in eden uygulamaların dışlama listesinde (…with-soap) vardı, com.zeus'a
+# CXF girince STANDART listeye de 'cxf-core' eklendi. Bu artık EXCL_SOAP'ı HER uygulamada
+# true yapar: USES_SOAP eski formülle her ince WAR'da 1 olur, aşağıdaki SOAP slot kontrolü
+# com.zeus.soap'ın HER sunucuda kurulu olmasını ister ve her thin-WAR deploy'unu exit 2 ile
+# engeller (final review, Critical 1'in CXF'in com.zeus'a taşınmasıyla YENİDEN ortaya
+# çıkışı). Bu yüzden EXCL_SOAP izi ve iki-property tutarlılık kontrolü TAMAMEN KALDIRILDI;
+# artık ifade edilemeyecek bir tutarsızlığı denetliyorlardı (with-soap property'si ve
+# zeus.descriptor.extra.modules artık YOK). USES_SOAP tek başına DESC_SOAP'tan türer.
+#
+# WAR build edilmemişse DESC_SOAP OKUNAMAZ (descriptor WAR içine gömülüdür) — o durumda
+# hem descriptor kontrolü hem SOAP slot kontrolü SKIPPED'e düşer, hard failure ÜRETİLMEZ.
 # ─────────────────────────────────────────────────────────────────────────────────────
-# (b) izi: WAR build edilmemiş olsa bile okunabilir — bu yüzden yedek ölçüt olarak da kullanılır.
-EXCL_SOAP=0
-if grep -q 'cxf-core' <<< "${PKG_EXCLUDES}"; then EXCL_SOAP=1; fi
-
 # Üretilen-descriptor kontrolü: WAR build edilmişse içinde framework'ün ürettiği
 # jboss-deployment-structure.xml olmalı. Yoksa zeus-generated-descriptor profili devreye
 # girmemiştir (tipik neden: src/main/webapp dizini yok — boşsa .gitkeep ile var edilmeli);
@@ -126,50 +128,15 @@ if [[ -n "${WAR}" ]]; then
     PASSED+=("üretilmiş descriptor WAR'da yerinde ($(basename "${WAR}"))")
 
     if grep -q 'name="com.zeus.soap"' <<< "${DESCRIPTOR_XML}"; then DESC_SOAP=1; fi
-
-    # İKİ-PROPERTY TUTARLILIK KONTROLÜ — İKİ YÖNLÜ (gelistirmeler/20-zeus-sms.md).
-    # Standart tip bir uygulama com.zeus.soap'ı opt-in ederken İKİ property yazmak
-    # zorundadır; script'ler arasında yapısal bir bağ yoktur, bağı bu kontrol kurar.
-    #
-    # YÖN 1 — descriptor VAR, dışlama YOK: CXF hem com.zeus.soap module'ünden gelir hem
-    # WAR'da WEB-INF/lib'te taşınır → 08-wildfly-module-dagitim.md'nin ikinci-kopya
-    # kuralının ClassCastException/LinkageError ürettiğini söylediği senaryo. Bu yönü
-    # WAR'ın FİİLİ içeriğinden ölçeriz (property'den değil): daha güçlü bir kanıttır.
-    if (( DESC_SOAP )); then
-        CXF_JARS="$(unzip -l "${WAR}" 2>/dev/null | awk '{print $4}' | grep -E '^WEB-INF/lib/cxf-' || true)"
-        if [[ -n "${CXF_JARS}" ]]; then
-            echo "HATA: descriptor com.zeus.soap'ı import ediyor AMA WAR'ın WEB-INF/lib'inde CXF jar'ı VAR — çift kopya:" >&2
-            sed 's/^/      /' <<< "${CXF_JARS}" >&2
-            echo "      CXF hem com.zeus.soap module'ünden hem WAR'dan yüklenir; ClassCastException/LinkageError riski." >&2
-            echo "      Çözüm: zeus.war.packaging-excludes'u \${zeus.war.packaging-excludes.with-soap}'a yönlendirin." >&2
-            exit 2
-        fi
-    fi
-
-    # YÖN 2 (AYNA) — dışlama VAR, descriptor YOK: uygulama with-soap listesine geçmiş ama
-    # zeus.descriptor.extra.modules satırını unutmuş. 25 soap-only artefakt WAR'dan SİLİNİR
-    # ama hiçbir module onları vermez → NoClassDefFoundError. Bu, ters kapsam kontrolünün
-    # önlemek için var olduğu hatanın ta kendisidir; ayrıca AÇIK bir iddia olarak da
-    # söylenir çünkü nedeni tek satırda anlaşılsın (final review, Important 4).
-    if (( EXCL_SOAP && ! DESC_SOAP )); then
-        echo "HATA: zeus.war.packaging-excludes CXF'i WAR'dan dışlıyor (…with-soap listesi) AMA" >&2
-        echo "      üretilen descriptor com.zeus.soap module'ünü import ETMİYOR." >&2
-        echo "      CXF yığınını WAR'dan silip yerine hiçbir module koymayan bu yapılandırma" >&2
-        echo "      WildFly'da NoClassDefFoundError üretir." >&2
-        echo "      Çözüm: app pom'una da şunu ekleyin:" >&2
-        echo "        <zeus.descriptor.extra.modules>&lt;module name=\"com.zeus.soap\" slot=\"\${zeus.soap.module.slot}\" services=\"import\" meta-inf=\"import\" annotations=\"true\"/&gt;</zeus.descriptor.extra.modules>" >&2
-        echo "      (iki property BİRLİKTE yazılır — bkz. gelistirmeler/20-zeus-sms.md)" >&2
-        exit 2
-    fi
-    PASSED+=("iki-property tutarlılığı (descriptor ⇔ dışlama listesi, iki yönlü)")
 else
-    SKIPPED+=("descriptor ve iki-property kontrolleri (target/ altında WAR yok — önce 'mvn package')")
+    SKIPPED+=("descriptor kontrolü (target/ altında WAR yok — önce 'mvn package')")
 fi
 
-# NİHAİ KARAR: uygulama com.zeus.soap'ı kullanıyor mu? WAR varsa descriptor izi otoritedir;
-# yoksa dışlama listesi izi yedek ölçüttür.
+# NİHAİ KARAR: uygulama com.zeus.soap'ı kullanıyor mu? Tek ölçüt DESC_SOAP'tır — WAR
+# build edilmemişse bilinmez ve USES_SOAP=0 kalır (aşağıdaki SOAP slot kontrolü SKIPPED'e
+# düşer, hard failure ÜRETMEZ).
 USES_SOAP=0
-if (( DESC_SOAP || EXCL_SOAP )); then USES_SOAP=1; fi
+if (( DESC_SOAP )); then USES_SOAP=1; fi
 
 SOAP_SLOT=""
 SOAP_MODULE_DIR=""

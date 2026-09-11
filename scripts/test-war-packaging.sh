@@ -18,9 +18,11 @@ echo ">> 0) zeus-fw çalışma ağacı kuruluyor (mvn install)"
 echo ">> A) REGRESYON: mevcut app'in WAR içeriği DEĞİŞMEMELİ"
 ( cd "${APP}" && mvn -q clean package -DskipTests ) || { echo "❌ build"; exit 1; }
 got="$(libs)"
-# app artık com.zeus.soap'ı (CXF/zeus-sms) opt-in import ediyor ve zeus.war.packaging-excludes'u
-# zeus.war.packaging-excludes.with-soap'a yönlendiriyor (task-8) — beklenen zeus jar sayısı
-# 5'ten 6'ya çıktı (zeus-sms eklendi) ve CXF yığını (module'de zaten var) WAR'a GİRMEMELİ.
+# app zeus-sms'e (CXF SOAP istemcisi) bağımlıdır — hiçbir opt-in property YAZMAZ artık:
+# CXF paylaşımlı com.zeus module'ünde (zeus-wildfly-module/pom.xml), opt-in mekanizması
+# (zeus.descriptor.extra.modules / zeus.war.packaging-excludes.with-soap) tamamen kalktı.
+# Beklenen zeus jar sayısı 6 (zeus-sms dahil); CXF yığını module'den geldiği için WAR'a
+# hiç GİRMEMELİ (standart dışlama listesi artık cxf-* içeriyor).
 expected="zeus-ai
 zeus-base
 zeus-database
@@ -31,7 +33,7 @@ got_names="$(sed 's/-2\.0\.0-SNAPSHOT\.jar$//' <<< "${got}" | sort)"
 [[ "${got_names}" == "${expected}" ]] && say 0 "tam 6 zeus jar'ı (zeus-sms dahil)" || { say 1 "tam 6 zeus jar'ı (zeus-sms dahil)"; echo "--- gelen:"; echo "${got}"; }
 grep -qE '^ojdbc' <<< "${got}" && say 1 "ojdbc WAR'da YOK" || say 0 "ojdbc WAR'da YOK"
 grep -qE '^jakarta\.' <<< "${got}" && say 1 "jakarta api WAR'da YOK" || say 0 "jakarta api WAR'da YOK"
-grep -qE '^cxf-' <<< "${got}" && say 1 "CXF (com.zeus.soap) WAR'da YOK" || say 0 "CXF (com.zeus.soap) WAR'da YOK"
+grep -qE '^cxf-' <<< "${got}" && say 1 "CXF (com.zeus) WAR'da YOK" || say 0 "CXF (com.zeus) WAR'da YOK"
 
 echo ">> B) YENİ DAVRANIŞ: module'de olmayan bağımlılık WAR'a GİRMELİ"
 # NOT: sabit paylaşımlı `/tmp/wpt-pom.bak` KULLANMIYORUZ — herkesin yazabildiği ortak bir

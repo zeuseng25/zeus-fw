@@ -181,15 +181,6 @@ list_soap() {
 MARK_BEGIN='ZEUS-WAR-EXCLUDES:BEGIN'
 MARK_END='ZEUS-WAR-EXCLUDES:END'
 
-# İKİNCİ marker çifti — YALNIZ zeus-parent/pom.xml'de. Opt-in com.zeus.soap importu yapan
-# STANDART tip bir uygulama (zeus-sms istemcisi), com.zeus'a ek olarak com.zeus.soap'ın da
-# WAR'a girmemesini istiyorsa bu property'yi (zeus.war.packaging-excludes.with-soap) kendi
-# pom'unda zeus.war.packaging-excludes'un YERİNE geçirir (task-8-brief.md). Değeri list_soap()
-# ile birebir aynıdır (zeus-soap-parent'a yazılanın kopyası) — SOAP tipi uygulamalar zaten
-# zeus-soap-parent'ın MARK_BEGIN/MARK_END bloğunu kullanır, bu ikinci blok ona DOKUNMAZ.
-MARK2_BEGIN='ZEUS-WAR-EXCLUDES-SOAP:BEGIN'
-MARK2_END='ZEUS-WAR-EXCLUDES-SOAP:END'
-
 # KAYNAK dosyayı okur, verilen marker bloğunun İÇİNDEKİ property satırını yeni regex ile
 # değiştirir ve sonucu HEDEF dosyaya yazar. KAYNAĞA DOKUNMAZ — bu ayrım `--check`'in
 # gerçekten salt-okunur olmasını sağlar (eskiden `--check` POM'ları yazıp EXIT trap'inde geri
@@ -209,9 +200,8 @@ MARK2_END='ZEUS-WAR-EXCLUDES-SOAP:END'
 #
 # $1=kaynak dosya  $2=property adı  $3=marker-begin  $4=marker-end  $5=regex  $6=hedef dosya
 # $7=eksikse-atla (1 = opsiyonel; boş/0 = ZORUNLU, yoksa HATA)
-# KAYNAK == HEDEF DEĞİL: zeus-parent iki bloğu ZİNCİRLEME günceller — birinci çağrının
-# ÇIKTISI ikinci çağrının KAYNAĞI olur (bkz. --write/--check'teki iki aşamalı kullanım),
-# böylece aynı POM'daki iki bağımsız marker bloğu birbirini EZMEDEN güncellenir.
+# KAYNAK == HEDEF DEĞİL: render HER ZAMAN bir tmp dosyasına yazılır, kaynak POM'a DEĞİL —
+# bu ayrım `--check`'in gerçekten salt-okunur olmasını sağlar (yukarıdaki not).
 render_pom() {
     local pom="$1" prop="$2" mark_begin="$3" mark_end="$4" regex="$5" out="$6" optional="${7:-0}"
     if [[ ! -f "${pom}" ]]; then
@@ -305,12 +295,9 @@ case "${1:---check}" in
         # ÖNCE HEPSİNİ tmp'ye render et, SONRA yerine koy: aradaki bir hata (ör. marker
         # kaybı) hiçbir POM'a dokunmadan durur. Eskiden iki yazma arasındaki hata
         # zeus-parent'ı YENİ, zeus-soap-parent'ı ESKİ listede bırakıyordu (final review,
-        # Important 2 — dosyalar arası atomiklik). zeus-parent'ta İKİ BAĞIMSIZ marker bloğu
-        # var; birinci aşamanın çıktısı ikinci aşamanın kaynağı olarak ZİNCİRLENİR.
+        # Important 2 — dosyalar arası atomiklik).
         render_pom "${STD_POM}" "zeus.war.packaging-excludes" \
-            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" || exit 1
-        render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
-            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" || exit 1
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.pom" || exit 1
         # SOAP_POM opsiyonel (7. argüman=1): zeus-soap-parent bir TİP parent'ıdır, her
         # kurulumda bulunmak zorunda değildir. STD_POM ise zorunludur — varsayılan.
         render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
@@ -326,11 +313,9 @@ case "${1:---check}" in
         regex_soap="$(list_soap)"    || { echo "HATA: soap listesi üretilemedi — --check İPTAL edildi." >&2; exit 1; }
         # render_pom'un stdout'u ARTIK YUTULMUYOR: tek bastığı şey "opsiyonel parent yok"
         # notudur ve `--check`'in onu /dev/null'a yollaması, atlamayı görünmez kılıyordu
-        # (final review, M2). STD_POM ve zincirin ikinci aşaması ZORUNLU'dur (7. argüman yok).
+        # (final review, M2). STD_POM ZORUNLU'dur (7. argüman yok).
         render_pom "${STD_POM}" "zeus.war.packaging-excludes" \
-            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.stage1.pom" || exit 1
-        render_pom "${tmp}/std.stage1.pom" "zeus.war.packaging-excludes.with-soap" \
-            "${MARK2_BEGIN}" "${MARK2_END}" "${regex_soap}" "${tmp}/std.pom" || exit 1
+            "${MARK_BEGIN}" "${MARK_END}" "${regex_std}" "${tmp}/std.pom" || exit 1
         render_pom "${SOAP_POM}" "zeus.war.packaging-excludes" \
             "${MARK_BEGIN}" "${MARK_END}" "${regex_soap}" "${tmp}/soap.pom" 1 || exit 1
         rc=0

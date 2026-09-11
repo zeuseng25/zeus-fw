@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
-# zeus.soap.module.slot HER tipte çözülmeli (standart tip dahil) — SOAP module'ünü
-# opt-in import eden standart uygulamalar slot'u bu property'den alır.
+# zeus.soap.module.slot HER tipte çözülmeli (standart tip dahil) — property zeus-parent'ta
+# tanımlı olduğu için tüm tipler miras alır; yalnız descriptor-soap şablonu (SOAP tipi)
+# değerini FİİLEN kullanır. CXF artık com.zeus'ta olduğu için standart tip uygulamaların
+# bu property'ye ihtiyacı yoktur, ama zeus-soap-parent'tan ayrı tutulmadığı için hâlâ
+# her tipte çözülür — bu test o miras zincirinin bozulmadığını doğrular.
 set -uo pipefail
 FW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0

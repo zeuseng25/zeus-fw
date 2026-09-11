@@ -66,14 +66,24 @@
             <artifactId>zeus-ai</artifactId>
         </dependency>
 
+        <!-- CXF sözleşmesi artık paylaşımlı module'de: com.zeus.soap küme farkıyla boşalır,
+             uygulama opt-in etmez (zeus-soap-wildfly-module'ün eskiden tek başına taşıdığı
+             cxf-spring-boot-starter-jaxws'i buraya alıyoruz). SOAP TİPİ uygulamalar SOAP endpoint
+             yayınlamak için hâlâ zeus-soap-parent seçmelidir (bkz. gelistirmeler/14); burada olan
+             yalnızca CXF'in 3. parti runtime kapanışıdır — zeus-soap (endpoint kayıt jar'ı) hâlâ
+             WAR içinde taşınır, buraya GİRMEZ. -->
+        <dependency>
+            <groupId>org.apache.cxf</groupId>
+            <artifactId>cxf-spring-boot-starter-jaxws</artifactId>
+        </dependency>
+
         <!-- BİLEREK YOK: zeus-redis (+50 artefakt: lettuce/jedis) ve zeus-batch (+33 artefakt:
              spring-batch-core/infrastructure). İkisi de iskelet ve HİÇBİR uygulama kullanmıyor;
              paylaşımlı module'e girmeleri, onları kullanmayan tüm uygulamalara restart lockstep
              maliyeti bindirir. Bir uygulama zeus-redis/zeus-batch kullanmaya başladığında
              verify-module-coverage.sh deploy'dan önce kırar; çözüm buraya tek satır eklemektir.
 
-             zeus-soap BURAYA GİRMEZ: CXF yığını ayrı com.zeus.soap module'üne aittir
-             (zeus-soap-wildfly-module). zeus-bff-* de girmez: BFF fat WAR'dır, izoledir. -->
+             zeus-bff-* girmez: BFF fat WAR'dır, izoledir. -->
 
         <!-- ═══════════ 2) Uygulamaların doğrudan kullandığı, zeus modüllerinde OLMAYAN yığın ═══════════
              zeus-* modülleri BURAYA KONMAZ (WAR içinde taşınır; install script zaten dışlar).

@@ -14,10 +14,11 @@
     <name>Zeus SMS (CXF SOAP istemcisi)</name>
     <description>
         SMS gönderimi için SOAP İSTEMCİSİ. CXF yığını bu jar'da DEĞİL, paylaşımlı
-        com.zeus.soap module'ündedir; kullanan uygulama descriptor'ına
-        zeus.descriptor.extra.modules ile o module'ü opt-in import eder.
-        ÖNEMLİ: bu modül zeus-wildfly-module'e EKLENMEZ — eklenirse CXF kapanışı
-        com.zeus'a sızar. Gerekçe: gelistirmeler/20-zeus-sms.md
+        com.zeus module'ündedir (zeus-wildfly-module'ün cxf-spring-boot-starter-jaxws
+        bağımlılığı); ayrı bir opt-in mekanizmasına GEREK YOKTUR — standart tip her
+        uygulama com.zeus'a zaten bağlanır. ÖNEMLİ: bu modülün KENDİSİ (zeus-sms jar'ı)
+        yine de zeus-wildfly-module'e EKLENMEZ — o, diğer zeus-* modülleri gibi WAR
+        içinde taşınır. Gerekçe: gelistirmeler/20-zeus-sms.md
     </description>
 
     <dependencies>
@@ -28,7 +29,7 @@
 
         <!-- CXF istemci yüzeyi. Sunucu tarafı starter'ı (cxf-spring-boot-starter-jaxws)
              BİLEREK kullanılmaz: istemcinin endpoint yayınlama yeteneğine ihtiyacı yok.
-             Bu üç artefakt da com.zeus.soap module'ünde MEVCUT. Sürümler cxf-bom'dan. -->
+             Bu üç artefakt da com.zeus module'ünde MEVCUT. Sürümler cxf-bom'dan. -->
         <dependency>
             <groupId>org.apache.cxf</groupId>
             <artifactId>cxf-rt-frontend-jaxws</artifactId>

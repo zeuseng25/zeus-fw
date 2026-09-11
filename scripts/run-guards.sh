@@ -55,7 +55,7 @@ done
 SUITE=(
   "fw|${FW_ROOT}/scripts/test-generate-war-excludes.sh|Üretilen dışlama listelerinin içeriği doğru mu"
   "fw|${FW_ROOT}/scripts/test-no-war-keep.sh|Kaldırılan WAR-keep property'sinin kod kalıntısı var mı"
-  "fw|${FW_ROOT}/scripts/test-com-zeus-cxf-sizintisi.sh|com.zeus sözleşmesine CXF sızmış mı"
+  "fw|${FW_ROOT}/scripts/test-com-zeus-cxf-sizintisi.sh|com.zeus sözleşmesinde CXF var mı, zeus-* jar'ı sızmış mı"
   "fw|${FW_ROOT}/scripts/test-generator-wiring.sh|Üreteç doğru çağrılıyor + listeler güncel mi"
   "app-both|${FW_ROOT}/scripts/test-soap-slot-property.sh|zeus.soap.module.slot her tipte çözülüyor mu"
   "app-std|${FW_ROOT}/scripts/test-war-packaging.sh|Standart tip WAR içeriği (uçtan uca build)"

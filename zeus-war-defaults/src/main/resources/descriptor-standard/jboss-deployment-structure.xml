@@ -34,13 +34,6 @@
                  sınıfını module'deki üst hiyerarşiye bağlayıp DispatcherServlet'i kurar. -->
             <module name="com.zeus" slot="${zeus.module.slot}"
                     services="import" meta-inf="import" annotations="true"/>
-            <!-- Uygulamaya özel EK module'ler; varsayılan BOŞ. zeus-parent'taki
-                 zeus.descriptor.extra.modules property'si doldurulursa içeriği buraya girer
-                 (tipik kullanım: devralınan bir util katmanı Oracle sürücü SINIFLARINA kod
-                 olarak bağlıysa sunucunun kendi ojdbc module'ünü import etmek). Gerekçe,
-                 sınırlar ve fat WAR uyarısı: zeus-parent/pom.xml property yorumu +
-                 gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md. -->
-            ${zeus.descriptor.extra.modules}
         </dependencies>
     </deployment>
 </jboss-deployment-structure>
