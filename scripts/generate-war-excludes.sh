@@ -17,6 +17,8 @@
 #   ./scripts/generate-war-excludes.sh                    # = --check (argümansız varsayılan)
 #
 set -euo pipefail
+# Sessiz ölüm YASAK: set -e ile düşen her komut nerede düştüğünü söylesin.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 
 FW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 MVN="${MVN:-mvn}"

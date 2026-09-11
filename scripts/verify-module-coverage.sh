@@ -20,6 +20,8 @@
 #   WILDFLY_HOME=/path/staging ./scripts/verify-module-coverage.sh /path/app
 #
 set -euo pipefail
+# Sessiz ölüm YASAK: set -e ile düşen her komut nerede düştüğünü söylesin.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 
 # FW_ROOT, APP_DIR'e cd EDİLMEDEN ÖNCE çözülür (sabit kuyruğu üreticiden okumak için).
 FW_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -236,6 +238,11 @@ fi
 FIXED_TAIL="$("${FW_ROOT}/scripts/generate-war-excludes.sh" --print fixed-tail)"
 
 set +e
+# ERR trap GEÇİCİ OLARAK KAPATILIR: ERR sinyali `set -e`'den BAĞIMSIZDIR (bash `set +e`
+# altında da tetiklenir) — aşağıdaki python3 çağrısının rc'si (0=geçti/1=hata/3=atlandı)
+# BİLEREK case ile ayrıştırılıyor; rc=3 bir HATA DEĞİL, "atlandı" demektir. Trap açık
+# kalsaydı bu NORMAL atlama yolunda bile sahte bir "HATA: komut başarısız" satırı basardı.
+trap - ERR
 PKG_EXCLUDES="${PKG_EXCLUDES}" FIXED_TAIL="${FIXED_TAIL}" \
 MODULE_DIR="${MODULE_DIR}" SOAP_MODULE_DIR="${SOAP_MODULE_DIR}" \
 SLOT="${SLOT}" SOAP_SLOT="${SOAP_SLOT}" python3 - <<'PY'
@@ -304,6 +311,8 @@ if missing:
 print(">> Ters kapsam: %d dışlanan artifactId'nin hepsi %s slot'unda mevcut." % (checked, slots))
 PY
 rev_rc=$?
+# ERR trap'i geri aç: geçici kapatma yalnız yukarıdaki set +e bloğuna özeldi.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 set -e
 case "${rev_rc}" in
     0) PASSED+=("ters kapsam: dışlanan her artifactId hedeflenen slot(lar)da mevcut") ;;

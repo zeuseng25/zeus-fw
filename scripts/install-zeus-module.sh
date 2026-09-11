@@ -37,6 +37,8 @@
 # Detay: gelistirmeler/08-wildfly-module-dagitim.md
 #
 set -euo pipefail
+# Sessiz ölüm YASAK: set -e ile düşen her komut nerede düştüğünü söylesin.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 
 WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 ZEUS_FW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -98,18 +100,33 @@ TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 echo ">> Runtime bağımlılıkları toplanıyor ($(basename "${MODULE_BUILD_DIR}"), dependency:copy-dependencies)..."
 cd "${MODULE_BUILD_DIR}"
-mvn -q dependency:copy-dependencies \
-    -DincludeScope=runtime \
-    -DoutputDirectory="${TMP}/lib"
+if ! mvn -q dependency:copy-dependencies \
+        -DincludeScope=runtime \
+        -DoutputDirectory="${TMP}/lib"; then
+    echo "HATA: '${MODULE_BUILD_DIR}' için 'mvn dependency:copy-dependencies' başarısız oldu." >&2
+    echo "      Ne yapılmaya çalışılıyordu: ${MODULE_NAME} module'ünün runtime bağımlılık kapanışı" >&2
+    echo "      (${TMP}/lib altına) toplanıyordu — module bu kapanıştan üretilir." >&2
+    echo "      Olası nedenler: Maven repository'ye erişilemiyor (ağ/offline), bozuk/eksik pom.xml," >&2
+    echo "      yanlış JAVA_HOME (export JAVA_HOME=.../openjdk@25), veya framework henüz" >&2
+    echo "      'mvn clean install' ile ~/.m2'ye kurulmamış (zeus-* jar'ları çözülemiyor)." >&2
+    exit 1
+fi
 
 # soap modunda: TEMEL com.zeus kapanışı da çözülür; orada zaten olan jar'lar KÜME FARKI ile
 # atlanır (aynı sınıflar iki module'de bulunursa LinkageError riski doğar).
 if [[ "${MODULE_KIND}" == "soap" ]]; then
     echo ">> Temel (com.zeus) kapanışı çözülüyor (küme farkı için)..."
     cd "${ZEUS_FW_DIR}/zeus-wildfly-module"
-    mvn -q dependency:copy-dependencies \
-        -DincludeScope=runtime \
-        -DoutputDirectory="${TMP}/base-lib"
+    if ! mvn -q dependency:copy-dependencies \
+            -DincludeScope=runtime \
+            -DoutputDirectory="${TMP}/base-lib"; then
+        echo "HATA: 'zeus-wildfly-module' için TEMEL (com.zeus) kapanışı çözülemedi (mvn dependency:copy-dependencies)." >&2
+        echo "      Ne yapılmaya çalışılıyordu: --module soap kurulumunda küme farkı hesaplamak için" >&2
+        echo "      com.zeus'un KENDİ runtime kapanışı ayrıca (${TMP}/base-lib altına) toplanıyordu." >&2
+        echo "      Olası nedenler: Maven repository'ye erişilemiyor (ağ/offline), bozuk/eksik pom.xml," >&2
+        echo "      yanlış JAVA_HOME, veya zeus-wildfly-module henüz ~/.m2'ye kurulmamış." >&2
+        exit 1
+    fi
 fi
 
 # --- 2) Module dizinini sıfırla ve jar'ları kopyala ---
@@ -142,10 +159,19 @@ echo ">> ${copied} jar kopyalandı -> ${MODULE_DIR}"
 JANDEX_VERSION="3.2.0"
 JANDEX_JAR="${HOME}/.m2/repository/io/smallrye/jandex/${JANDEX_VERSION}/jandex-${JANDEX_VERSION}.jar"
 if [[ ! -f "${JANDEX_JAR}" ]]; then
-    mvn -q dependency:get -Dartifact="io.smallrye:jandex:${JANDEX_VERSION}" -Dtransitive=false
+    if ! mvn -q dependency:get -Dartifact="io.smallrye:jandex:${JANDEX_VERSION}" -Dtransitive=false; then
+        echo "HATA: jandex ${JANDEX_VERSION} 'mvn dependency:get' ile çözülemedi." >&2
+        echo "      Ne yapılmaya çalışılıyordu: annotation index aracı (jandex) ~/.m2'ye indiriliyordu" >&2
+        echo "      (module İÇERİĞİNE bağımlı DEĞİLDİR, yalnızca bir ARAÇ olarak kullanılır)." >&2
+        echo "      Olası nedenler: Maven repository'ye (Maven Central) erişilemiyor (ağ/offline)," >&2
+        echo "      yanlış JAVA_HOME, veya io.smallrye:jandex:${JANDEX_VERSION} artık mevcut değil" >&2
+        echo "      (sürüm burada güncellenmeli: ${BASH_SOURCE[0]})." >&2
+        exit 1
+    fi
 fi
 if [[ ! -f "${JANDEX_JAR}" ]]; then
-    echo "HATA: jandex ${JANDEX_VERSION} çözülemedi; annotation index gömülemiyor." >&2
+    echo "HATA: jandex ${JANDEX_VERSION} 'mvn dependency:get' başarıyla döndü ama jar beklenen yolda yok: ${JANDEX_JAR}" >&2
+    echo "      Olası neden: JANDEX_VERSION ile ~/.m2 repository düzeni beklenenden farklı." >&2
     exit 1
 fi
 echo ">> Jandex index gömülüyor (${copied} jar)..."
