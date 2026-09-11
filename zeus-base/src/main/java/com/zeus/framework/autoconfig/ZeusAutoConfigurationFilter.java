@@ -3,6 +3,7 @@ package com.zeus.framework.autoconfig;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
 import org.springframework.context.EnvironmentAware;
@@ -18,14 +19,38 @@ import org.springframework.core.env.Environment;
  *
  * FAIL-OPEN: tanımadığı sınıfı veto ETMEZ. Framework'ün eksik bir sınıflandırması üretimi
  * düşürmemeli — sınıflandırma eksiğini build zamanında guard yakalar.
+ *
+ * AYRICA (fix round 1): "bağımlılık WAR'da var ama yetenek hiç bildirilmemiş" çelişkisinin
+ * denetimi de BURADAN koşar ({@link ZeusCapabilityVerifier#denetle}). Gerekçe o sınıfın
+ * javadoc'unda: denetimin ilk evi olan EnvironmentPostProcessor ince WAR modelinde HİÇ
+ * çalışmıyordu; bu sınıf ise çalıştığı gerçek sunucuda kanıtlandı.
  */
-public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilter, EnvironmentAware {
+public class ZeusAutoConfigurationFilter
+        implements AutoConfigurationImportFilter, EnvironmentAware, BeanClassLoaderAware {
 
     private Environment environment;
+
+    /**
+     * Uygulamanın KENDİ classloader'ı. Spring bunu her filtre örneğine
+     * {@code AutoConfigurationImportSelector.invokeAwareMethods(...)} ile verir ve değeri
+     * selector'ın {@code beanClassLoader}'ıdır — yani filtreleri (dolayısıyla BU sınıfı)
+     * {@code WEB-INF/lib}'de BULAN classloader. İnce WAR'da WAR'ın deployment classloader'ıdır;
+     * paylaşımlı com.zeus module'ünün classloader'ı DEĞİLDİR. Yetenek işaretçi sınıfları
+     * yalnız onunla doğru aranabilir.
+     */
+    private ClassLoader beanClassLoader;
+
+    /** Çelişki denetimi uygulama başına BİR kez koşar; her filtrelenen sınıf için DEĞİL. */
+    private boolean celiskiDenetlendi;
 
     @Override
     public void setEnvironment(Environment environment) {
         this.environment = environment;
+    }
+
+    @Override
+    public void setBeanClassLoader(ClassLoader classLoader) {
+        this.beanClassLoader = classLoader;
     }
 
     @Override
@@ -36,6 +61,17 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
         if (!booleanOzellikOku(environment, "zeus.autoconfig.filter.enabled", true)) {
             Arrays.fill(sonuc, true);
             return sonuc;
+        }
+
+        // Çelişki denetimi: kaçış kapısı 1'den SONRA (mekanizma kapalıysa denetim de susar),
+        // aday döngüsünden ÖNCE. Uygulama başına bir kez; bayrak, match() aday listesiyle
+        // birden çok kez çağrılsa bile denetimin tekrarlanmamasını sağlar.
+        // beanClassLoader null ise denetim yapılmaz: o durumda ölçülecek bir WAR yoktur
+        // (yalnız elle kurulan birim testi filtresinde olur; Spring gerçek koşuda filtreyi
+        // KULLANMADAN ÖNCE invokeAwareMethods ile bu değeri HER ZAMAN set eder).
+        if (!celiskiDenetlendi && beanClassLoader != null) {
+            celiskiDenetlendi = true;
+            ZeusCapabilityVerifier.denetle(environment, beanClassLoader);
         }
 
         // Kaçış kapısı 2: adı verilen autoconfig'ler veto edilmez (yanlış sınıflandırma kurtarması).

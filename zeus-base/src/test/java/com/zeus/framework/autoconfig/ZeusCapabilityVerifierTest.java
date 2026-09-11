@@ -1,6 +1,8 @@
 package com.zeus.framework.autoconfig;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -46,6 +48,42 @@ class ZeusCapabilityVerifierTest {
         MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "true");
         assertThat(ZeusCapabilityVerifier.dogrula(
                 env, yukleyici("com.zeus.framework.ai.ZeusAiAutoConfiguration"))).isEmpty();
+    }
+
+    @Test
+    void isaretciVarPropertyFalse_sessiz() {
+        // BİLİNÇLİ KAPATMA çelişki DEĞİLDİR (fix round 1, kusur 2): "bağımlılık WAR'da var
+        // ama bu yeteneği istemiyorum" demenin tek yolu budur. Önceki sürüm 'property != true'
+        // baktığı için bu cümle kurulamıyordu; 'false' yazan uygulama da hata alıyordu.
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "false");
+        assertThat(ZeusCapabilityVerifier.dogrula(
+                env, yukleyici("com.zeus.framework.ai.ZeusAiAutoConfiguration"))).isEmpty();
+    }
+
+    @Test
+    void isaretciVarBildirilmisAmaTypoluDeger_acikHata() {
+        // Bildirim VAR ama değer typo'lu: yetenek autoconfig'leri aday listesine hiç girmese
+        // bile sessiz kalınmaz — filtreyle aynı konuşan hata.
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "tru");
+        assertThatThrownBy(() -> ZeusCapabilityVerifier.dogrula(
+                env, yukleyici("com.zeus.framework.ai.ZeusAiAutoConfiguration")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("zeus.ai.enabled")
+                .hasMessageContaining("tru");
+    }
+
+    @Test
+    void denetleCelistiginde_acilisiDurduranHataAtar() {
+        // denetle(), filtrenin çağırdığı giriş noktasıdır: liste boş değilse açılışı durdurur.
+        assertThatThrownBy(() -> ZeusCapabilityVerifier.denetle(
+                new MockEnvironment(), yukleyici("com.zeus.framework.ai.ZeusAiAutoConfiguration")))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Zeus yetenek bildirimi eksik")
+                .hasMessageContaining("zeus.ai.enabled=true")
+                .hasMessageContaining("pom.xml");
+
+        assertThatCode(() -> ZeusCapabilityVerifier.denetle(new MockEnvironment(), yukleyici()))
+                .doesNotThrowAnyException();
     }
 
     @Test

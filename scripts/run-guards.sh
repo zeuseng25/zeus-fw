@@ -56,6 +56,7 @@ done
 SUITE=(
   "fw|${FW_ROOT}/scripts/test-generate-war-excludes.sh|Üretilen dışlama listelerinin içeriği doğru mu"
   "fw|${FW_ROOT}/scripts/test-no-war-keep.sh|Kaldırılan WAR-keep property'sinin kod kalıntısı var mı"
+  "fw|${FW_ROOT}/scripts/test-spring-factories-ince-war.sh|zeus-base spring.factories yalnız ince WAR'da çalıştığı kanıtlanmış uzantı tiplerini kaydediyor mu"
   "fw|${FW_ROOT}/scripts/test-descriptor-sablonlari.sh|Üretilen descriptor şablonlarının module kümesi + yük taşıyan attribute'ları"
   "fw|${FW_ROOT}/scripts/test-script-hardening.sh|Platform script'leri ERR trap + kontrollü mvn çağrısı taşıyor mu"
   "fw|${FW_ROOT}/scripts/test-com-zeus-cxf-sozlesmesi.sh|com.zeus sözleşmesinde CXF var mı, zeus-* jar'ı sızmış mı"

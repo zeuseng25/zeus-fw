@@ -1,8 +1,16 @@
 # Yetenek opt-in filtresi. Spring Boot'un kendi koşul sınıfları da bu anahtarla kayıtlıdır
 # (bkz. spring-boot-autoconfigure!/META-INF/spring.factories).
+#
+# İNCE WAR KURALI — bu dosyaya YENİ BİR ANAHTAR EKLEMEDEN ÖNCE OKUYUN:
+# Paylaşımlı com.zeus module'ündeki spring-boot jar'ının classloader'ı, WAR'ın
+# WEB-INF/lib'indeki META-INF/spring.factories dosyalarını GÖREMEZ. Dolayısıyla burada
+# yapılan her kayıt WildFly'da otomatik olarak çalışmaz; yalnız Spring'in BEAN (deployment)
+# classloader'ı ile yüklediği uzantı tipleri çalışır. AutoConfigurationImportFilter bunlardan
+# biridir (AutoConfigurationImportSelector#getAutoConfigurationImportFilters →
+# SpringFactoriesLoader.loadFactories(..., this.beanClassLoader)) ve gerçek sunucuda
+# kanıtlanmıştır. EnvironmentPostProcessor DEĞİLDİR: bu dosyada bir zamanlar kayıtlı olan
+# ZeusCapabilityVerifier üretimde HİÇ çalışmadı (bkz. o sınıfın javadoc'u) ve denetim
+# ZeusAutoConfigurationFilter'a taşındı.
+# Bu kuralı scripts/test-spring-factories-ince-war.sh guard'ı denetler.
 org.springframework.boot.autoconfigure.AutoConfigurationImportFilter=\
 com.zeus.framework.autoconfig.ZeusAutoConfigurationFilter
-
-# "Bağımlılık var ama property yok" çelişkisini açılışta yakalar.
-org.springframework.boot.env.EnvironmentPostProcessor=\
-com.zeus.framework.autoconfig.ZeusCapabilityVerifier

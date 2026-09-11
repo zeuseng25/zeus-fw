@@ -3,6 +3,8 @@ package com.zeus.framework.autoconfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -16,10 +18,41 @@ class ZeusAutoConfigurationFilterTest {
     private static final String DOC   = "org.springdoc.core.configuration.SpringDocConfiguration";
     private static final String SOAP  = "org.apache.cxf.spring.boot.autoconfigure.CxfAutoConfiguration";
 
+    /** İşaretçi sınıf ADI = zeus-ai bağımlılığının WAR'da olmasının sinyali. */
+    private static final String AI_ISARETCI = "com.zeus.framework.ai.ZeusAiAutoConfiguration";
+
     private boolean[] filtrele(MockEnvironment env, String... sinifar) {
         ZeusAutoConfigurationFilter f = new ZeusAutoConfigurationFilter();
         f.setEnvironment(env);
         return f.match(sinifar, null);
+    }
+
+    /**
+     * Yalnız adı verilen zeus işaretçilerini "WAR'da var" sayan, her sorguyu SAYAN yükleyici.
+     * Spring gerçek koşuda filtreye bunun yerine WAR'ın deployment classloader'ını verir
+     * (AutoConfigurationImportSelector.invokeAwareMethods → setBeanClassLoader).
+     */
+    private ClassLoader sayanYukleyici(AtomicInteger sayac, String... varOlanlar) {
+        List<String> var = List.of(varOlanlar);
+        return new ClassLoader(getClass().getClassLoader()) {
+            @Override
+            public Class<?> loadClass(String name) throws ClassNotFoundException {
+                if (name.startsWith("com.zeus.framework.")) {
+                    sayac.incrementAndGet();
+                    if (!var.contains(name)) {
+                        throw new ClassNotFoundException(name);
+                    }
+                }
+                return super.loadClass(name);
+            }
+        };
+    }
+
+    private ZeusAutoConfigurationFilter filtreKur(MockEnvironment env, ClassLoader yukleyici) {
+        ZeusAutoConfigurationFilter f = new ZeusAutoConfigurationFilter();
+        f.setEnvironment(env);
+        f.setBeanClassLoader(yukleyici);
+        return f;
     }
 
     @Test
@@ -108,5 +141,56 @@ class ZeusAutoConfigurationFilterTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("zeus.autoconfig.filter.enabled")
                 .hasMessageContaining("evet");
+    }
+
+    // ───────── Çelişki denetimi ARTIK BU FİLTREDEN koşuyor (fix round 1) ─────────
+    // Gerekçe: ilk evi olan EnvironmentPostProcessor ince WAR modelinde HİÇ çalışmıyordu;
+    // bu filtre ise gerçek WildFly deploy'unda çalıştığı kanıtlanmış tek yol.
+
+    @Test
+    void celiskiFiltreninKendisindenFirlar() {
+        // zeus-ai WAR'da (işaretçi çözülüyor) ama hiçbir bildirim yok → konuşan hata.
+        AtomicInteger sayac = new AtomicInteger();
+        ZeusAutoConfigurationFilter f =
+                filtreKur(new MockEnvironment(), sayanYukleyici(sayac, AI_ISARETCI));
+
+        assertThatThrownBy(() -> f.match(new String[] {MVC}, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Zeus yetenek bildirimi eksik")
+                .hasMessageContaining("zeus.ai.enabled=true")
+                .hasMessageContaining("pom.xml");
+    }
+
+    @Test
+    void bilincliFalseFiltredenDeHataVermez() {
+        // "Bağımlılığım var, yeteneği bilerek kapalı tutuyorum" MEŞRU cümledir (kusur 2).
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "false");
+        ZeusAutoConfigurationFilter f =
+                filtreKur(env, sayanYukleyici(new AtomicInteger(), AI_ISARETCI));
+
+        assertThat(f.match(new String[] {AI, MVC}, null)).containsExactly(false, true);
+    }
+
+    @Test
+    void celiskiDenetimiUygulamaBasinaBirKezKosar() {
+        // Her filtrelenen sınıf için DEĞİL, her match() çağrısı için de DEĞİL: bir kez.
+        AtomicInteger sayac = new AtomicInteger();
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "true");
+        ZeusAutoConfigurationFilter f = filtreKur(env, sayanYukleyici(sayac, AI_ISARETCI));
+
+        f.match(new String[] {AI, JDBC, MVC, DOC}, null);
+        int ilkKosudakiSorgu = sayac.get();
+        assertThat(ilkKosudakiSorgu).isEqualTo(ZeusCapabilities.HEPSI.size());  // sınıf başına değil
+
+        f.match(new String[] {AI, JDBC, MVC, DOC}, null);
+        assertThat(sayac.get()).isEqualTo(ilkKosudakiSorgu);                    // ikinci kez koşmadı
+    }
+
+    @Test
+    void beanClassLoaderYokkenDenetimYapilmaz() {
+        // Elle kurulan filtre (birim testi) — ölçülecek bir WAR yok. Spring gerçek koşuda
+        // setBeanClassLoader'ı HER ZAMAN çağırır, bu yüzden bu dal üretimde oluşmaz.
+        // Bu testin varlığı, dalın sessiz bir atlama DEĞİL bilinçli bir sözleşme olduğunu belgeler.
+        assertThat(filtrele(new MockEnvironment(), AI, MVC)).containsExactly(false, true);
     }
 }
