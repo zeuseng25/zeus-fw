@@ -6,6 +6,7 @@ import java.util.Optional;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
 import org.springframework.context.EnvironmentAware;
+import org.springframework.core.convert.ConversionFailedException;
 import org.springframework.core.env.Environment;
 
 /**
@@ -32,7 +33,7 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
         boolean[] sonuc = new boolean[autoConfigurationClasses.length];
 
         // Kaçış kapısı 1: mekanizmayı tamamen kapat (bu değişiklik öncesi davranış).
-        if (!environment.getProperty("zeus.autoconfig.filter.enabled", Boolean.class, true)) {
+        if (!booleanOzellikOku("zeus.autoconfig.filter.enabled", true)) {
             Arrays.fill(sonuc, true);
             return sonuc;
         }
@@ -54,8 +55,33 @@ public class ZeusAutoConfigurationFilter implements AutoConfigurationImportFilte
             }
             Optional<ZeusCapability> sahip = ZeusCapabilities.sahipBul(sinif);
             sonuc[i] = sahip.isEmpty()
-                    || environment.getProperty(sahip.get().property(), Boolean.class, false);
+                    || booleanOzellikOku(sahip.get().property(), false);
         }
         return sonuc;
+    }
+
+    /**
+     * Bir boolean property'yi okur; typo'lu/tanımadık bir değer varsa (ör. "tru") anlaşılır bir
+     * hatayla fail eder.
+     *
+     * NOT (bu ayrımı basitleştirmeye çalışma): burada uygulanan davranış, sınıfın başındaki
+     * FAIL-OPEN kuralıyla ÇELİŞMEZ, ondan AYRIDIR. FAIL-OPEN, framework'ün TANIMADIĞI bir
+     * autoconfig sınıfı içindir — sınıflandırmadaki bir boşluk, çalışan bir uygulamayı asla
+     * kırmamalı. Ama burada söz konusu olan uygulamanın KENDİ yapılandırma hatasıdır (typo'lu bir
+     * boolean); bunu sessizce false'a çevirip yeteneği kapatmak, hatayı gizler ve sorunu
+     * ilerideki "eksik bean" gibi anlaşılmaz bir hataya öteler. O yüzden burada fail-open
+     * UYGULANMAZ: hata, property adını ve verilen değeri belirterek açıkça fırlatılır.
+     */
+    private boolean booleanOzellikOku(String anahtar, boolean varsayilan) {
+        try {
+            return environment.getProperty(anahtar, Boolean.class, varsayilan);
+        } catch (ConversionFailedException e) {
+            throw new IllegalStateException(
+                    ("Geçersiz yapılandırma: '%s' özelliği '%s' değerini kabul etmiyor. "
+                            + "Kabul edilen değerler: true/false (TRUE/FALSE), 1/0, yes/no, on/off "
+                            + "veya boş (varsayılan kullanılır).")
+                            .formatted(anahtar, environment.getProperty(anahtar)),
+                    e);
+        }
     }
 }
