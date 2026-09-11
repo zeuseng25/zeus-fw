@@ -66,12 +66,19 @@ public class ZeusAutoConfigurationFilter
         // Çelişki denetimi: kaçış kapısı 1'den SONRA (mekanizma kapalıysa denetim de susar),
         // aday döngüsünden ÖNCE. Uygulama başına bir kez; bayrak, match() aday listesiyle
         // birden çok kez çağrılsa bile denetimin tekrarlanmamasını sağlar.
-        // beanClassLoader null ise denetim yapılmaz: o durumda ölçülecek bir WAR yoktur
-        // (yalnız elle kurulan birim testi filtresinde olur; Spring gerçek koşuda filtreyi
-        // KULLANMADAN ÖNCE invokeAwareMethods ile bu değeri HER ZAMAN set eder).
-        if (!celiskiDenetlendi && beanClassLoader != null) {
+        // beanClassLoader null ise Spring'in KENDİ fallback'i uygulanır: Boot'un
+        // AutoConfigurationImportSelector#getConfigurationClassFilter'ı da tam bu deseni kullanır
+        // ((this.beanClassLoader != null) ? this.beanClassLoader : getClass().getClassLoader()).
+        // Bu sınıf zeus-base jar'ının İÇİNDE yaşar ve zeus-base her zaman WAR'ın WEB-INF/lib'inde
+        // olduğundan (zeus jar'ları paylaşımlı com.zeus module'üne GİRMEZ), bu sınıfın kendi
+        // classloader'ı da WAR'ın deployment classloader'ıdır — yani doğru yükleyicidir. Null'u
+        // sessizce atlamak, mekanizmanın "denetim sessizce çalışmıyor" kusurunu (bkz.
+        // ZeusCapabilityVerifier javadoc'u) burada küçük ölçekte yeniden üretirdi.
+        if (!celiskiDenetlendi) {
             celiskiDenetlendi = true;
-            ZeusCapabilityVerifier.denetle(environment, beanClassLoader);
+            ClassLoader kullanilacakYukleyici =
+                    (beanClassLoader != null) ? beanClassLoader : getClass().getClassLoader();
+            ZeusCapabilityVerifier.denetle(environment, kullanilacakYukleyici);
         }
 
         // Kaçış kapısı 2: adı verilen autoconfig'ler veto edilmez (yanlış sınıflandırma kurtarması).

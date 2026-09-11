@@ -21,9 +21,18 @@ class ZeusAutoConfigurationFilterTest {
     /** İşaretçi sınıf ADI = zeus-ai bağımlılığının WAR'da olmasının sinyali. */
     private static final String AI_ISARETCI = "com.zeus.framework.ai.ZeusAiAutoConfiguration";
 
+    /**
+     * Bu yardımcı, filtreyi HİÇBİR yetenek işaretçisinin çözülemediği bir classloader ile kurar
+     * (aşağıdaki {@link #sayanYukleyici} — argümansız çağrıldığında hiçbir com.zeus.framework.*
+     * sınıfını "var" saymaz). Çelişki denetimi bu yüzden HER ZAMAN koşar (artık beanClassLoader
+     * null olsa bile koşar — bkz. {@link #beanClassLoaderYokkenKendiYukleyicisineDuserVeCalisir})
+     * ama hiçbir işaretçi bulunamadığından sessiz kalır; bu, yalnız filtreleme davranışını (force
+     * include, veto, hata mesajları) sınayan aşağıdaki testleri çelişki denetiminden yalıtır.
+     */
     private boolean[] filtrele(MockEnvironment env, String... sinifar) {
         ZeusAutoConfigurationFilter f = new ZeusAutoConfigurationFilter();
         f.setEnvironment(env);
+        f.setBeanClassLoader(sayanYukleyici(new AtomicInteger()));
         return f.match(sinifar, null);
     }
 
@@ -187,10 +196,26 @@ class ZeusAutoConfigurationFilterTest {
     }
 
     @Test
-    void beanClassLoaderYokkenDenetimYapilmaz() {
-        // Elle kurulan filtre (birim testi) — ölçülecek bir WAR yok. Spring gerçek koşuda
-        // setBeanClassLoader'ı HER ZAMAN çağırır, bu yüzden bu dal üretimde oluşmaz.
-        // Bu testin varlığı, dalın sessiz bir atlama DEĞİL bilinçli bir sözleşme olduğunu belgeler.
-        assertThat(filtrele(new MockEnvironment(), AI, MVC)).containsExactly(false, true);
+    void beanClassLoaderYokkenKendiYukleyicisineDuserVeCalisir() {
+        // Fix round 2 (Task 6, Part B #1): beanClassLoader null ise ARTIK sessizce atlanmaz;
+        // Boot'un kendi AutoConfigurationImportSelector#getConfigurationClassFilter'ıyla AYNI
+        // fallback uygulanır: (beanClassLoader != null) ? beanClassLoader : getClass().getClassLoader().
+        // Bu sınıf (ZeusAutoConfigurationFilter) zeus-base jar'ının içinde yaşar ve zeus-base
+        // her zaman WAR'ın WEB-INF/lib'indedir (zeus jar'ları com.zeus module'üne GİRMEZ) —
+        // dolayısıyla kendi classloader'ı zaten doğru yükleyicidir.
+        //
+        // Kanıt setBeanClassLoader HİÇ çağrılmadan (beanClassLoader gerçekten null) elde edilir:
+        // com.zeus.framework.ai.ZeusAiAutoConfiguration GERÇEKTEN bu test modülünün classpath'inde
+        // (zeus-base/src/test/java/.../ai/ZeusAiAutoConfiguration.java — bkz. o dosyanın javadoc'u)
+        // çözülebilir bir sınıf, yani fallback işaretçiyi BULUR ve zeus.ai.enabled hiç
+        // bildirilmediği için çelişki denetimi FIRLAR — eski davranış (sessiz {false, true})
+        // yerine artık konuşan bir hata verir.
+        ZeusAutoConfigurationFilter f = new ZeusAutoConfigurationFilter();
+        f.setEnvironment(new MockEnvironment());
+
+        assertThatThrownBy(() -> f.match(new String[] {AI, MVC}, null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Zeus yetenek bildirimi eksik")
+                .hasMessageContaining("zeus.ai.enabled=true");
     }
 }

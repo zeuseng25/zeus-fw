@@ -176,22 +176,35 @@ import etmektir: JCA'nın kullandığı module'ün aynısı olduğu için sını
 > `com.oracle.ojdbc`'yi import eden YENİ bir tipe geçer (yeni parent + yeni descriptor).
 > İkisi de henüz yapılmadı. Ayrıntı: `10-versiyonlu-slot-uretilen-descriptor.md`.
 
-**Module geniştir, uygulama dardır — daraltma uygulamanın işidir.** Module tüm uygulamaların
-birleşimi olduğu için, bir uygulama kullanmadığı yeteneklerin jar'larını da classpath'inde
-görür ve **Spring Boot onları otomatik yapılandırmaya çalışır**. Veritabanı kullanmayan bir
-uygulama `Failed to determine a suitable driver class`, AI kullanmayan bir uygulama
-`At least one credential source must be specified` ile deploy'da düşer. Çözüm uygulamada:
-
-```properties
-spring.autoconfigure.exclude=\
-  org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,\
-  org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
-```
-
-(ya da ilgili yeteneğin beklediği minimum property'yi vermek). Bu, ince WAR modelinin
-kaçınılmaz bedelidir; module'ü uygulama başına daraltmak paylaşımlılığı bozardı.
+**Module geniştir, uygulama dardır — daraltma artık FRAMEWORK'ün işidir (2026-09-11'den beri).**
+Module tüm uygulamaların birleşimi olduğu için, bir uygulama kullanmadığı yeteneklerin
+jar'larını da classpath'inde görür — bu satır hâlâ doğrudur ve değişmedi. Değişen, bu yan
+etkiye kimin çözüm ürettiğidir: **daraltma artık uygulamanın DEĞİL, framework'ün işidir.**
+`zeus-base`'deki opt-in mekanizması (`ZeusCapabilities` kaydı + `ZeusAutoConfigurationFilter`
++ `ZeusCapabilityVerifier`), bir yeteneğin (AI, veritabanı, SOAP) 3. parti autoconfig'lerini
+uygulama o yeteneği `zeus.<yetenek>.enabled=true` ile **açıkça istemedikçe** aday listesine
+hiç sokmaz. Uygulama Spring Boot'un iç paket adlarını bilmek zorunda değildir. Tam tasarım,
+fail-open ↔ fail-closed asimetrisinin gerekçesi ve yetenek tablosu:
+`21-yetenek-opt-in.md`.
 
 Detay ve yenileme prosedürü: `17-module-yenileme-runbook.md`.
+
+> **TARİHSEL NOT — eski çözüm (2026-09-11 öncesi).** Bu bölüm bir dönem, yukarıdaki yan etkinin
+> çözümü olarak uygulamanın kendi `application.properties`'ine elle `spring.autoconfigure.exclude`
+> yazmasını öneriyordu:
+>
+> ```properties
+> spring.autoconfigure.exclude=\
+>   org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,\
+>   org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration
+> ```
+>
+> (ya da ilgili yeteneğin beklediği minimum property'yi vermek — ör. AI için sahte bir
+> `spring.ai.openai.api-key=kullanilmiyor`). Bu metin artık **çözüm önerisi DEĞİLDİR** — yukarıdaki
+> opt-in mekanizmasıyla değiştirildi (kanıt: `zeus-sample-soap`'ın bu workaround'u 14 satırdan
+> 1 satıra indi, bkz. `21-yetenek-opt-in.md`). Bu repodaki yerleşik desen gereği eski metin
+> **silinmedi**, tarihsel not olarak burada bırakıldı — bu iki çözümün NEDEN birbirinin yerini
+> aldığını anlamak isteyen için.
 
 ## Üretim — `scripts/install-zeus-module.sh`
 
