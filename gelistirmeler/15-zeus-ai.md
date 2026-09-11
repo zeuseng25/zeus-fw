@@ -25,6 +25,9 @@ tamamı aynı `/v1/chat/completions` sözleşmesini konuşur. Bu yüzden framewo
 (`spring-ai-starter-model-openai`) bağlanır; **hedef yalnızca `base-url` ile değişir**:
 
 ```properties
+# YETENEK BİLDİRİMİ — bu satır olmadan aşağıdakilerin hiçbiri devreye girmez (opt-in).
+zeus.ai.enabled=true
+
 # PROD  — kurumsal vLLM
 spring.ai.openai.base-url=http://vllm.kurum.local:8000/v1
 spring.ai.openai.chat.model=Qwen/Qwen3-30B-A3B-Instruct-2507
@@ -84,15 +87,28 @@ public interface ZeusAiAssistant {
 Sınıf adları **String** olarak verilir; böylece zeus-ai, Spring AI'ın `*-autoconfigure`
 paketlerine derleme zamanı bağımlılığı taşımaz (paket/sürüm değişikliğine dayanıklı).
 Bean'ler `@ConditionalOnBean(ChatClient.Builder.class)` ile koşulludur: model
-yapılandırılmamışsa modül sessizce devre dışı kalır. Tüm modül `zeus.ai.enabled=false` ile
-kapatılabilir. `ChatClient` ve `ZeusAiAssistant` `@ConditionalOnMissingBean` ile kayıtlıdır —
-uygulama kendi bean'ini tanımlarsa framework geri çekilir.
+yapılandırılmamışsa modül sessizce devre dışı kalır. `ChatClient` ve `ZeusAiAssistant`
+`@ConditionalOnMissingBean` ile kayıtlıdır — uygulama kendi bean'ini tanımlarsa framework
+geri çekilir.
+
+> **VARSAYILAN KAPALI — `zeus.ai.enabled=true` YAZILMADIKÇA modül yüklenmez (2026-09-11'den beri).**
+> Sınıf `@ConditionalOnProperty(prefix = "zeus.ai", name = "enabled", havingValue = "true")`
+> ile işaretlidir; `matchIfMissing` **yoktur**, yani property hiç yazılmazsa modül KAPALI kalır.
+> Aynı anahtar Spring AI'ın 3. parti autoconfig'lerini de yönetir
+> (`ZeusAutoConfigurationFilter` onları `zeus.ai.enabled` `true` değilse aday listesine hiç
+> sokmaz) — uygulamanın öğrenmesi gereken tek kavram budur. Tam mekanizma:
+> `21-yetenek-opt-in.md`.
+>
+> **Bu dokümanın eski hâli bunun TERSİNİ söylüyordu** ("tüm modül `zeus.ai.enabled=false` ile
+> kapatılabilir", tabloda varsayılan `true`). O cümle, opt-in'e geçişten önceki davranışı
+> anlatıyordu ve artık yanlıştır: hiçbir şey yazmayan bir uygulama AI'ı AÇIK sanıp
+> `zeus-ai` bağımlılığı varken "Zeus yetenek bildirimi eksik" hatasını alır.
 
 ## `zeus.ai.*` ayarları
 
 | Property | Varsayılan | Açıklama |
 |----------|-----------|----------|
-| `zeus.ai.enabled` | `true` | Modülü tümüyle kapatır |
+| `zeus.ai.enabled` | **`false`** (yazılmazsa KAPALI) | Yetenek opt-in anahtarı: `true` yazılmadıkça ne zeus-ai ne de Spring AI autoconfig'leri yüklenir (bkz. `21-yetenek-opt-in.md`) |
 | `zeus.ai.system-prompt` | kurumsal Türkçe prompt | Tüm isteklere uygulanan ortak sistem mesajı |
 | `zeus.ai.log-conversation` | `false` | İstek/yanıt gövdesini DEBUG'da loglar (`SimpleLoggerAdvisor`). **Üretimde kapalı tutun** — prompt'ta kişisel veri olabilir |
 

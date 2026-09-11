@@ -19,9 +19,19 @@ Eski çözüm uygulamanın kendisindeydi — her uygulama kendi `application.pro
 08'in ilgili bölümündeki **tarihsel not**). Bu, üç sorunu vardı: (1) her uygulama Spring Boot'un
 iç paket adlarını (`org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration`
 gibi) ezbere bilmek zorundaydı, (2) `zeus-sample-soap` gibi hem veritabanı hem AI hem de gerçek
-olmayan bir OpenAI anahtarı istemeyen bir uygulama **14 satırlık** bir workaround bloğuna ve
-sahte bir `spring.ai.openai.api-key=kullanilmiyor` satırına mahkumdu, (3) daraltma her
-uygulamada **ayrı ayrı, tutarsız** bir şekilde tekrarlanıyordu.
+olmayan bir OpenAI anahtarı istemeyen bir uygulama **12 satırlık** bir workaround bloğuna
+(bunun **6**'sı property satırı; sahte `spring.ai.openai.api-key=kullanilmiyor` dahil **5**
+workaround property) mahkumdu, (3) daraltma her uygulamada **ayrı ayrı, tutarsız** bir şekilde
+tekrarlanıyordu.
+
+> **Sayıların kaynağı** (doküman 08 ile aynı ölçüm, farklı kesit):
+> `git -C ../zeus-sample-soap diff -- src/main/resources/application.properties` başlığı
+> `@@ -1,14 +1,7 @@` — yani **dosya** 14 satırdan 7 satıra indi; bu 14 satırın **12**'si
+> silinen workaround bloğuydu (kalan 2 satır: `spring.application.name` ve bir boş satır).
+> Silinen 12 satırın 6'sı property satırıdır (`spring.autoconfigure.exclude=` + 4 devam satırı
+> + `api-key`), anlam olarak **5** workaround property eder (4 dışlanan autoconfig + 1 sahte
+> anahtar). Doküman 08 dosya kesitini ("14 satırdan 7 satıra, 5 workaround property'den 1
+> yetenek bildirimine") söyler; burada blok kesiti verilir. İkisi çelişmez.
 
 ## Karar — opt-in, framework seviyesinde
 
@@ -52,8 +62,26 @@ zeus.soap.enabled=true        # SOAP endpoint yayınlayan uygulama (zeus-soap)
 
 | Property | Etki |
 |---|---|
-| `zeus.autoconfig.filter.enabled=false` | Mekanizmayı **tamamen** kapatır (bu özellik öncesi davranışa döner — hiçbir şey veto edilmez, çelişki denetimi de susar). |
+| `zeus.autoconfig.filter.enabled=false` | **Filtreyi** tamamen kapatır: hiçbir 3. parti autoconfig veto edilmez, çelişki denetimi de susar. Tam olarak neyi geri getirdiği aşağıda — "bu özellik öncesi davranışa döner" **DEĞİLDİR**. |
 | `zeus.autoconfig.force-include=<Sınıf1,Sınıf2,...>` | Adı verilen autoconfig sınıflarını, yeteneğe ait olsalar bile **hiçbir zaman** veto etmez — yanlış sınıflandırma için kurtarma valfi. |
+
+> **`zeus.autoconfig.filter.enabled=false` ESKİ DAVRANIŞI GERİ GETİRMEZ — olay anında bunu bilin.**
+> Kapattığı yalnızca **filtredir**. Yetenek modüllerinin KENDİ autoconfig'leri
+> (`ZeusAiAutoConfiguration`, `ZeusSoapAutoConfiguration`) ayrıca kendi
+> `@ConditionalOnProperty(... havingValue = "true")` anotasyonlarını taşır ve bu bayrak onları
+> **etkilemez**. Sonuç, ikisinin ortasında bir durumdur:
+>
+> | | `zeus.ai.enabled` yok + filtre AÇIK (normal) | `zeus.ai.enabled` yok + filtre KAPALI |
+> |---|---|---|
+> | Spring AI'ın 3. parti autoconfig'leri | veto edilir — sessiz | **çalışır** — ve `api-key` ister (özellik öncesi ağrının ta kendisi) |
+> | `ZeusAiAutoConfiguration` (zeus tarafı) | yüklenmez | **yine yüklenmez** (kendi property'si `true` değil) |
+>
+> Yani bu valf, "zeus opt-in'inin filtresi bir uygulamayı yanlışlıkla düşürdü" senaryosunda
+> **3. parti yığını geri açmak** içindir; zeus modüllerini geri açmak için değil. Gerçekten
+> özellik öncesi davranışın tamamını isteyen (ve o yığının beklediği property'leri vermeye
+> hazır olan) bir uygulama, filtreyi kapatmanın yanında ilgili `zeus.<yetenek>.enabled=true`
+> satırlarını da yazmalıdır. Tek sınıflık bir kurtarma için doğru valf zaten
+> `zeus.autoconfig.force-include`'tur.
 
 ## Üç parça
 
@@ -62,10 +90,12 @@ zeus.soap.enabled=true        # SOAP endpoint yayınlayan uygulama (zeus-soap)
    parti autoconfig paket önekleri eşlemesini tutar. Ayrıca `HER_ZAMAN_SERBEST`: hiçbir
    yeteneğe ait olmayan, her uygulamada çalışması gereken yığın (Spring MVC, Jackson,
    validation, **springdoc** — Swagger her uygulamada varsayılan açıktır, bu yetenek DEĞİLDİR).
+   **`HER_ZAMAN_SERBEST` bir ÇALIŞMA ZAMANI garantisi değildir** — aşağıya bakın.
 2. **Filtre — `ZeusAutoConfigurationFilter`** (`zeus-base`, `AutoConfigurationImportFilter`
    olarak `META-INF/spring.factories` ile kayıtlı). Context kurulmadan ÖNCE çalışır; bir
    autoconfig sınıfının sahibi olan yetenek varsa ve o yeteneğin property'si `true` değilse
-   veto eder.
+   veto eder. Fiilen veto ettiği **her yetenek için açılışta TEK bir log satırı** basar
+   (aşağıdaki "Veto'nun izi").
 3. **Verifier — `ZeusCapabilityVerifier`** (`zeus-base`). "Bağımlılık WAR'da var ama property
    hiç yazılmamış" çelişkisini açılışta yakalar ve açılışı durduran, iki çıkış yolunu da
    söyleyen bir hata fırlatır:
@@ -97,11 +127,67 @@ Bu üç parça **iki farklı** hata felsefesi uygular; bu bilerek yapılmıştı
   onun **fark edilmeden büyümesine** izin verirdi — module her yeni 3. parti kütüphaneyle
   büyüdükçe, hiç kimsenin bilmediği "her uygulamada her zaman açık" bir yetenek listesi
   birikir. Guard bu birikimi **derleme anında** görünür kılar; çalışan hiçbir şeyi kırmadan.
+  Aynı guard İKİNCİ bir ölçüm daha yapar: `HEPSI`'deki her **işaretçi sınıf** dizesinin
+  gerçek bir kaynak dosyaya (`zeus-<ad>/src/main/java/<paket>/<Sınıf>.java`) karşılık geldiğini
+  doğrular — o dizeler `Class.forName` ile çözülür ve bir yeniden adlandırma/paket taşıma
+  onları sessizce kaydırırsa **çelişki denetimi tamamen ölür**: hiçbir test kırılmaz, bildirimi
+  eksik uygulama bir daha hata almaz. (Ölçüldü: iki işaretçi adı bozulduğunda guard'lar ve 25
+  birim testin tamamı yeşil kalıyordu.)
 
 İki yarı birlikte şu cümleyi kurar: **"sınıflandırma eksikse üretim asla düşmesin, ama o
 eksiklik de asla fark edilmeden kalmasın."** Yalnız fail-open olsaydı sınıflandırma sessizce
 çürürdü; yalnız fail-closed olsaydı (ör. filtre de tanımadığı sınıfı veto etseydi) framework'ün
 kendi eksik bir güncellemesi tüm uygulamaları aynı anda düşürebilirdi.
+
+## Veto'nun izi — yetenek başına tek log satırı
+
+Veto'nun imzası **yokluktur**: veto edilen autoconfig sınıfı aday listesine hiç girmez,
+dolayısıyla `debug=true` ile açılan Boot condition raporunda da görünmez (rapor `Exclusions:
+None` der — `spring.autoconfigure.exclude` kullanılmadığı için doğrudur ama yanıltıcıdır).
+Bu yüzden filtre, **fiilen veto ettiği her yetenek için** açılışta tek bir satır basar:
+
+```
+Zeus: 'database' yeteneği KAPALI (zeus.database.enabled yazılmamış) — 13 autoconfig veto edildi. Açmak için: zeus.database.enabled=true
+Zeus: 'ai' yeteneği KAPALI (zeus.ai.enabled=false) — 4 autoconfig veto edildi. Açmak için: zeus.ai.enabled=true
+```
+
+- **Yetenek başına bir kez** basılır (sınıf başına değil, `match()` çağrısı başına da değil).
+- Property hiç yazılmamışsa `... yazılmamış`, bilinçli kapatılmışsa `...=false` yazar — operatör
+  hangisi olduğunu logdan görür.
+- Veto YOKSA satır da yoktur; sahipsiz (fail-open) sınıflar hiç raporlanmaz.
+
+**Neden gerekliydi:** `zeus-database`'i pom'una yazmayan ama JDBC/JPA'yı **kendi** pom'una
+koyan bir uygulamada işaretçi sınıf bulunmaz, dolayısıyla çelişki denetimi de susar — o
+uygulamanın tüm persistence yığını veto edilir ve operatörün gördüğü tek şey
+`No qualifying bean of type 'JdbcTemplate'` olur; mesajda "zeus" kelimesi **hiç geçmez**.
+Bu satır, o durumda zeus'u işaret eden tek izdir. Log **veto EKLEMEZ**, yalnız var olanı
+görünür kılar — fail-open kuralı olduğu gibi durur.
+
+## Zeus modüllerinin kendi autoconfig'leri de aynı anahtarla koşulludur
+
+`zeus.<yetenek>.enabled` **tek** kavramdır ve iki tarafı birden yönetir:
+
+| | 3. parti autoconfig | zeus modülünün kendi autoconfig'i |
+|---|---|---|
+| `ai` | filtre veto eder | `ZeusAiAutoConfiguration` — `@ConditionalOnProperty(havingValue="true")` |
+| `soap` | filtre veto eder | `ZeusSoapAutoConfiguration` — `@ConditionalOnProperty(havingValue="true")` |
+
+Bu **simetri zorunludur**, kozmetik değildir: `ZeusSoapAutoConfiguration`'ın bean'leri CXF
+`Bus`'ına bağlıdır ve `Bus`'ın tek sağlayıcısı, `soap` yeteneğine ait olan
+`CxfAutoConfiguration`'dır. Zeus tarafı yalnız `@ConditionalOnClass(Bus.class)` ile koşullu
+kaldığı sürece, `zeus.soap.enabled=false` yazan bir uygulama — ki bu cümleyi framework'ün
+**kendi hata mesajı** öneriyor — açılışta
+`NoSuchBeanDefinitionException: No qualifying bean of type 'org.apache.cxf.Bus'` alırdı.
+Ölçülüp düzeltildi (fix round 2); sözleşme
+`zeus-soap/src/test/java/com/zeus/framework/soap/ZeusSoapAutoConfigurationTest.java` ile
+kilitlendi.
+
+`zeus-database` bugün bu simetriyi **taşımıyor** (kendi autoconfig'leri `zeus.database.enabled`
+ile koşullu değil); bu, bilinçli olarak ayrı ele alınan açık bir sorudur. Bugün için zararsız
+olmasının sebebi, o modülün bean'lerinin `@ConditionalOnBean(EntityManagerFactory.class)` ve
+`@ConditionalOnSingleCandidate(DataSource.class)` ile koşullu olmasıdır: yetenek kapalıyken
+`DataSource`/`EntityManagerFactory` hiç kurulmaz, dolayısıyla zeus bean'leri de sessizce
+kurulmaz — CXF `Bus`'ındaki gibi **zorunlu bir constructor bağımlılığı** yoktur, açılış düşmez.
 
 ## Yetenek tablosu
 
@@ -111,9 +197,22 @@ kendi eksik bir güncellemesi tüm uygulamaları aynı anda düşürebilirdi.
 | Veritabanı | `database` | `zeus.database.enabled` | `com.zeus.framework.database.ZeusDatabaseAutoConfiguration` | `org.springframework.boot.jdbc.autoconfigure.`, `org.springframework.boot.hibernate.autoconfigure.`, `org.springframework.boot.data.jpa.autoconfigure.`, `org.springframework.boot.persistence.autoconfigure.` |
 | SOAP | `soap` | `zeus.soap.enabled` | `com.zeus.framework.soap.ZeusSoapAutoConfiguration` | `org.apache.cxf.spring.boot.autoconfigure.` |
 
-**Her zaman serbest** (yetenek DEĞİL, hiçbir koşulda veto edilmez): Spring Boot çekirdeği
+**Her zaman serbest** (yetenek DEĞİL): Spring Boot çekirdeği
 (`org.springframework.boot.autoconfigure.`), web MVC/servlet/Jackson/validation/http/
 restclient/webclient/reactor/transaction/data yığınları ve **springdoc** (`org.springdoc.`).
+
+> **`HER_ZAMAN_SERBEST`'i BUILD listesi olarak okuyun, çalışma zamanı garantisi olarak DEĞİL.**
+> `ZeusAutoConfigurationFilter` bu listeyi **hiç okumaz**; okuyan tek yer
+> `scripts/test-autoconfig-sahipligi.sh` guard'ıdır (her autoconfig sınıfı ya bir yeteneğe ya
+> da buraya düşmeli). Çalışma zamanındaki serbestlik başka bir şeyden gelir: **sahibi
+> olmamaktan** — `ZeusCapabilities.sahipBul(...)` önce `HEPSI`'ye bakar, hiçbir yetenek
+> sahiplenmiyorsa sınıf geçer (fail-open).
+>
+> Pratik sonucu şudur: yanlışlıkla bir yeteneğe düşmüş bir sınıfı serbest bırakmak için
+> önekini `HER_ZAMAN_SERBEST`'e eklemek **hiçbir şeyi değiştirmez** — guard yeşil kalır ama
+> davranış aynıdır, çünkü `sahipBul` yine `HEPSI`'de bir sahip bulur. Doğru düzeltme
+> `HEPSI`'deki hatalı öneki **daraltmak/kaldırmaktır**; tek bir sınıf için acil kurtarma valfi
+> ise `zeus.autoconfig.force-include`'tur.
 
 **`zeus-redis` ve `zeus-batch` kayıtta YOK** — kapsam dışı (spec kararı): ikisi de iskelet
 hâlde ve `com.zeus` module'üne henüz girmiyor. Gerçek bir modül hâline geldiklerinde "yeni

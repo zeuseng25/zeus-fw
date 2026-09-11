@@ -249,12 +249,38 @@ uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bf
 1. **Parent seçimi tip seçimidir**: REST → zeus-parent, SOAP → zeus-soap-parent,
    BFF → zeus-bff-parent. Paketleme/descriptor davranışını parent belirler; uygulama
    war-plugin/descriptor override ETMEZ.
-2. **DB kullanmayan uygulama** (ör. çoğu SOAP/BFF): paylaşımlı module `starter-data-jpa`
-   taşıdığı için Boot JPA autoconfig'i tetiklenir; datasource'suz uygulama şunu ekler:
+2. **Yetenek bildirimi — kullandığın yeteneği YAZ, kullanmadığını YAZMA** (2026-09-11'den
+   beri). Uygulama artık `spring.autoconfigure.exclude` yazmaz; kullandığı her zeus yeteneği
+   için **tek satır** yazar:
    ```properties
-   spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration
+   zeus.soap.enabled=true        # SOAP endpoint yayınlayan uygulama (zeus-soap)
+   zeus.database.enabled=true    # veritabanı kullanan uygulama (zeus-database)
+   zeus.ai.enabled=true          # AI kullanan uygulama (zeus-ai)
    ```
-   (BFF fat WAR'ında data-jpa zaten yoktur — bu kural ince WAR tipleri içindir.)
+   Kullanılmayan yetenek için **hiçbir şey yazılmaz** — o yeteneğin 3. parti autoconfig'leri
+   (JDBC/Hibernate/JPA, Spring AI, CXF) aday listesine hiç girmez. Daraltma artık uygulamanın
+   değil **framework'ün** işidir; mekanizma `21-yetenek-opt-in.md`'de.
+
+   **Hangi tipte geçerli:** mekanizma `zeus-base`'in içindedir, dolayısıyla `zeus-base`'i alan
+   **HER tipte** çalışır — ince WAR tipleri (`zeus-parent`, `zeus-soap-parent`) kadar fat WAR
+   tipleri (`zeus-bff-parent`, `zeus-standalone-parent`) için de. Fark yalnız **hangi
+   autoconfig'lerin ortada olduğudur**: ince WAR'da paylaşımlı `com.zeus` module'ü tüm
+   uygulamaların birleşimini classpath'e koyduğu için veto edilecek çok şey vardır; fat WAR
+   tipinde uygulamanın WAR'ında yalnız kendi bağımlılıkları olduğundan çoğu yetenek zaten
+   classpath'te yoktur (ör. BFF'te `data-jpa`) ve veto edecek bir şey çıkmaz. **Ama kural
+   aynıdır:** fat WAR tipi bir uygulama `zeus-database`'i pom'una koyup `zeus.database.enabled`
+   yazmazsa, `ZeusCapabilityVerifier` orada da "Zeus yetenek bildirimi eksik" diyerek açılışı
+   durdurur.
+
+   > **TARİHSEL NOT — eski kural (2026-09-11 öncesi).** Bu madde bir dönem, DB kullanmayan
+   > uygulamaya şunu eklemesini söylüyordu:
+   > ```properties
+   > spring.autoconfigure.exclude=org.springframework.boot.jdbc.autoconfigure.DataSourceAutoConfiguration,org.springframework.boot.hibernate.autoconfigure.HibernateJpaAutoConfiguration,org.springframework.boot.jdbc.autoconfigure.DataSourceInitializationAutoConfiguration
+   > ```
+   > Bu blok `zeus-sample-soap`'tan **silindi** ve yerini tek satırlık `zeus.soap.enabled=true`
+   > bildirimi aldı. Metin, iki çözümün neden birbirinin yerini aldığını anlamak isteyen için
+   > tarihsel not olarak bırakıldı — **uygulanacak kural yukarıdakidir**.
+
 3. **BFF route örneği** (context path dahil, doğrulanmış):
    ```properties
    spring.cloud.gateway.server.webmvc.routes[0].id=products-proxy

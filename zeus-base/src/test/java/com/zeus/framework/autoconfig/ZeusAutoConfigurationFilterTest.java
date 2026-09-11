@@ -3,8 +3,11 @@ package com.zeus.framework.autoconfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import ch.qos.logback.classic.spi.ILoggingEvent;
+import ch.qos.logback.core.read.ListAppender;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -193,6 +196,88 @@ class ZeusAutoConfigurationFilterTest {
 
         f.match(new String[] {AI, JDBC, MVC, DOC}, null);
         assertThat(sayac.get()).isEqualTo(ilkKosudakiSorgu);                    // ikinci kez koşmadı
+    }
+
+    // ───────── Veto'nun izi: yetenek başına TEK log satırı (fix round 2, kusur 2) ─────────
+    // Veto'nun imzası YOKLUKTUR: veto edilen sınıf aday listesine hiç girmez, debug=true
+    // raporunda bile görünmez ("Exclusions: None"). Bu satır olmadan, yeteneği kapalı kalan
+    // bir uygulamanın operatörü "No qualifying bean of type 'JdbcTemplate'" görür ve içinde
+    // "zeus" kelimesi HİÇ geçmez. Aşağıdaki testler o satırın METNİNİ kilitler.
+
+    /**
+     * Filtre logger'ına bir logback {@link ListAppender} takar, gövdeyi koşturur ve
+     * biçimlenmiş log satırlarını döndürür. (logback-classic zaten zeus-base test
+     * classpath'indedir — spring-boot-starter-test üzerinden; pom'a bir şey EKLENMEDİ.)
+     */
+    private List<String> logSatirlari(Consumer<ZeusAutoConfigurationFilter> govde,
+                                      MockEnvironment env, ClassLoader yukleyici) {
+        ch.qos.logback.classic.Logger logger =
+                (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(
+                        ZeusAutoConfigurationFilter.class);
+        ListAppender<ILoggingEvent> toplayici = new ListAppender<>();
+        toplayici.start();
+        logger.addAppender(toplayici);
+        try {
+            govde.accept(filtreKur(env, yukleyici));
+        } finally {
+            logger.detachAppender(toplayici);
+            toplayici.stop();
+        }
+        return toplayici.list.stream().map(ILoggingEvent::getFormattedMessage).toList();
+    }
+
+    @Test
+    void vetoEdilenYetenekIcinTekLogSatiriBasilir() {
+        // Hiçbir property yok: ai ve database KAPALI, ikisi de veto edilir; MVC sahipsiz,
+        // ne veto edilir ne raporlanır (fail-open sessizdir).
+        List<String> satirlar = logSatirlari(
+                f -> f.match(new String[] {AI, JDBC, MVC}, null),
+                new MockEnvironment(), sayanYukleyici(new AtomicInteger()));
+
+        assertThat(satirlar).hasSize(2);
+        assertThat(satirlar).anySatisfy(satir -> assertThat(satir).isEqualTo(
+                "Zeus: 'ai' yeteneği KAPALI (zeus.ai.enabled yazılmamış) — 1 autoconfig veto "
+                        + "edildi. Açmak için: zeus.ai.enabled=true"));
+        assertThat(satirlar).anySatisfy(satir -> assertThat(satir).isEqualTo(
+                "Zeus: 'database' yeteneği KAPALI (zeus.database.enabled yazılmamış) — 1 autoconfig "
+                        + "veto edildi. Açmak için: zeus.database.enabled=true"));
+        // Sahipsiz sınıf için satır YOK.
+        assertThat(satirlar).noneMatch(satir -> satir.contains("webmvc"));
+    }
+
+    @Test
+    void logSatiriBilincliFalseIleYazilmisPropertyyiAyirtEder() {
+        // "yazılmamış" ile "=false" farklı cümlelerdir: operatör hangisi olduğunu logdan görmeli.
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "false");
+        List<String> satirlar = logSatirlari(
+                f -> f.match(new String[] {AI}, null), env, sayanYukleyici(new AtomicInteger()));
+
+        assertThat(satirlar).containsExactly(
+                "Zeus: 'ai' yeteneği KAPALI (zeus.ai.enabled=false) — 1 autoconfig veto edildi. "
+                        + "Açmak için: zeus.ai.enabled=true");
+    }
+
+    @Test
+    void logSatiriYetenekBasinaBirKezBasilir() {
+        // Sınıf başına DEĞİL, match() çağrısı başına DA değil: uygulama başına (yetenek başına) bir kez.
+        List<String> satirlar = logSatirlari(f -> {
+            f.match(new String[] {AI, AI, JDBC}, null);
+            f.match(new String[] {AI, JDBC}, null);
+        }, new MockEnvironment(), sayanYukleyici(new AtomicInteger()));
+
+        assertThat(satirlar).hasSize(2);   // ai için 1, database için 1 — toplam 2
+        assertThat(satirlar).anyMatch(satir -> satir.contains("'ai'"))
+                .anyMatch(satir -> satir.contains("'database'"));
+    }
+
+    @Test
+    void acikYetenekIcinLogBasilmaz() {
+        // Veto YOKSA satır da yok: log gürültüsü yalnız fiilen veto edilen yetenek için.
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "true");
+        List<String> satirlar = logSatirlari(
+                f -> f.match(new String[] {AI, MVC, DOC}, null), env, sayanYukleyici(new AtomicInteger()));
+
+        assertThat(satirlar).isEmpty();
     }
 
     @Test

@@ -1,8 +1,14 @@
 package com.zeus.framework.autoconfig;
 
 import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.boot.autoconfigure.AutoConfigurationImportFilter;
 import org.springframework.boot.autoconfigure.AutoConfigurationMetadata;
@@ -24,9 +30,15 @@ import org.springframework.core.env.Environment;
  * denetimi de BURADAN koşar ({@link ZeusCapabilityVerifier#denetle}). Gerekçe o sınıfın
  * javadoc'unda: denetimin ilk evi olan EnvironmentPostProcessor ince WAR modelinde HİÇ
  * çalışmıyordu; bu sınıf ise çalıştığı gerçek sunucuda kanıtlandı.
+ *
+ * AYRICA (fix round 2): fiilen veto edilen her yetenek için açılışta TEK bir log satırı basılır
+ * ({@link #vetolariRaporla}) — veto'nun imzası YOKLUK olduğu için, o satır olmadan vetonun
+ * izini süren hiçbir iz kalmıyordu.
  */
 public class ZeusAutoConfigurationFilter
         implements AutoConfigurationImportFilter, EnvironmentAware, BeanClassLoaderAware {
+
+    private static final Logger log = LoggerFactory.getLogger(ZeusAutoConfigurationFilter.class);
 
     private Environment environment;
 
@@ -42,6 +54,13 @@ public class ZeusAutoConfigurationFilter
 
     /** Çelişki denetimi uygulama başına BİR kez koşar; her filtrelenen sınıf için DEĞİL. */
     private boolean celiskiDenetlendi;
+
+    /**
+     * Hakkında ZATEN log basılmış yetenekler (fix round 2, kusur 2). Veto BAŞINA değil,
+     * YETENEK başına tek satır: {@code match()} birden çok kez çağrılsa da (Spring aday
+     * listesini parça parça verebilir) aynı yetenek ikinci kez raporlanmaz.
+     */
+    private final Set<String> vetoLoglanan = new HashSet<>();
 
     @Override
     public void setEnvironment(Environment environment) {
@@ -88,6 +107,9 @@ public class ZeusAutoConfigurationFilter
         List<String> zorlaDahil = List.of(
                 environment.getProperty("zeus.autoconfig.force-include", String[].class, new String[0]));
 
+        // Yetenek başına veto sayısı; döngüden SONRA tek satır hâlinde raporlanır.
+        Map<ZeusCapability, Integer> vetoSayaci = new LinkedHashMap<>();
+
         for (int i = 0; i < autoConfigurationClasses.length; i++) {
             String sinif = autoConfigurationClasses[i];
             // Spring bu diziye null koyabilir (zaten elenmiş adaylar) — dokunma.
@@ -102,8 +124,41 @@ public class ZeusAutoConfigurationFilter
             Optional<ZeusCapability> sahip = ZeusCapabilities.sahipBul(sinif);
             sonuc[i] = sahip.isEmpty()
                     || booleanOzellikOku(environment, sahip.get().property(), false);
+            if (!sonuc[i]) {
+                vetoSayaci.merge(sahip.get(), 1, Integer::sum);
+            }
         }
+        vetolariRaporla(vetoSayaci);
         return sonuc;
+    }
+
+    /**
+     * Veto edilen HER yetenek için TEK bir log satırı basar (fix round 2, kusur 2).
+     *
+     * NEDEN VAR: veto'nun imzası YOKLUKTUR — veto edilen autoconfig sınıfı aday listesine hiç
+     * girmez, dolayısıyla {@code debug=true} raporunda da görünmez ("Exclusions: None" yazar).
+     * Bu satır olmadan, kendi pom'una JDBC/JPA koyup {@code zeus.database.enabled} yazmayan bir
+     * uygulamanın operatörü yalnızca "No qualifying bean of type 'JdbcTemplate'" görürdü —
+     * içinde "zeus" kelimesi HİÇ geçmeyen bir hata. Artık açılış logunda yetenek adı, property
+     * adı ve veto sayısı yazılıdır.
+     *
+     * Bu bir VETO EKLEMEZ, yalnız var olan vetoyu görünür kılar: fail-open kuralı korunur
+     * (sahipsiz sınıf ne veto edilir ne raporlanır).
+     */
+    private void vetolariRaporla(Map<ZeusCapability, Integer> vetoSayaci) {
+        for (Map.Entry<ZeusCapability, Integer> girdi : vetoSayaci.entrySet()) {
+            ZeusCapability yetenek = girdi.getKey();
+            if (!vetoLoglanan.add(yetenek.ad())) {
+                continue;   // bu yetenek için satır zaten basıldı
+            }
+            // İki farklı sebep, iki farklı cümle: property hiç yazılmamış olabilir ya da
+            // BİLİNÇLİ olarak kapatılmış olabilir. Operatör hangisi olduğunu logdan görmeli.
+            String bildirim = environment.containsProperty(yetenek.property())
+                    ? "%s=%s".formatted(yetenek.property(), environment.getProperty(yetenek.property()))
+                    : "%s yazılmamış".formatted(yetenek.property());
+            log.info("Zeus: '{}' yeteneği KAPALI ({}) — {} autoconfig veto edildi. Açmak için: {}=true",
+                    yetenek.ad(), bildirim, girdi.getValue(), yetenek.property());
+        }
     }
 
     /**

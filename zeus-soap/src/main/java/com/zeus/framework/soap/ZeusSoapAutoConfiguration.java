@@ -22,9 +22,25 @@ import org.springframework.context.annotation.Bean;
  * <p>SOAP tipi uygulamalarda (parent: {@code zeus-soap-parent}) WildFly'ın kendi JBossWS/CXF'i
  * descriptor'daki {@code webservices} subsystem dışlamasıyla devre dışıdır; buradaki CXF,
  * {@code com.zeus.soap} module'ünden yüklenir.
+ *
+ * <h2>Neden {@code zeus.soap.enabled=true} ŞART (fix round 2)</h2>
+ *
+ * Bu sınıfın bean'leri {@link Bus}'a bağlıdır ve {@code Bus}'ın TEK sağlayıcısı CXF'in kendi
+ * {@code CxfAutoConfiguration}'ıdır — o da {@code soap} yeteneğine aittir
+ * ({@link com.zeus.framework.autoconfig.ZeusCapabilities}) ve {@code zeus.soap.enabled}
+ * {@code true} değilse {@code ZeusAutoConfigurationFilter} tarafından VETO EDİLİR.
+ * Bu sınıf yalnız {@code @ConditionalOnClass(Bus.class)} ile koşullu kaldığı sürece,
+ * {@code zeus.soap.enabled=false} yazan bir uygulamada (ki bu, "bağımlılığım var ama yeteneği
+ * istemiyorum" demenin framework'ün KENDİ hata mesajında önerdiği cümledir) kendisi yüklenir
+ * ama {@code Bus} bean'i bulunmaz ve açılış {@code NoSuchBeanDefinitionException} ile düşerdi.
+ * Bu yüzden zeus tarafı da AYNI anahtarla koşulludur — {@code zeus-ai}'daki desenin aynısı.
  */
 @AutoConfiguration
 @ConditionalOnClass(Bus.class)
+// matchIfMissing=false: yetenekler OPT-IN'dir (bkz. com.zeus.framework.autoconfig.ZeusCapabilities).
+// Aynı anahtar hem bu autoconfig'i hem CXF'in 3. parti autoconfig'ini yönetir; ikisi AYNI
+// cümleyle açılıp AYNI cümleyle kapanır, arada "yarı açık" bir durum kalmaz.
+@ConditionalOnProperty(prefix = "zeus.soap", name = "enabled", havingValue = "true")
 public class ZeusSoapAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(ZeusSoapAutoConfiguration.class);

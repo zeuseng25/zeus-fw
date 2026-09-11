@@ -181,9 +181,17 @@ specified`. Sebep paylaşımlı module'ün genişliği: `com.zeus` Hibernate/Hik
 jar'larını classpath'e koyduğu için Boot onları **otomatik yapılandırmaya çalışır**, uygulama
 o yetenekleri kullanmasa bile.
 
-> **Kural:** ince WAR + paylaşımlı module modelinde bir uygulama, module'de olup kendisinin
-> kullanmadığı yetenekleri `spring.autoconfigure.exclude` ile (ya da gereken minimum
-> property'yi vererek) susturmalıdır. Module dar değil geniştir; daraltma uygulamanın işidir.
+> **Kural (GÜNCEL, 2026-09-11'den beri):** module dar değil geniştir — ama **daraltma artık
+> uygulamanın değil FRAMEWORK'ün işidir.** Uygulama `spring.autoconfigure.exclude` yazmaz;
+> yalnız **kullandığı** yetenekler için tek satırlık bir bildirim yazar
+> (`zeus.<yetenek>.enabled=true`), kullanmadığı için hiçbir şey yazmaz. Mekanizma:
+> `21-yetenek-opt-in.md`; aynı güncelleme doküman 08'de de yapılıdır.
+>
+> **TARİHSEL NOT — bu kutunun eski hâli** şunu söylüyordu: "uygulama, module'de olup
+> kendisinin kullanmadığı yetenekleri `spring.autoconfigure.exclude` ile (ya da gereken
+> minimum property'yi vererek) susturmalıdır; daraltma uygulamanın işidir." O cümle opt-in
+> mekanizmasından önceki dönemi anlatır ve **artık uygulanmaz** — yukarıdaki paragrafta
+> anlatılan iki deploy hatası da bugün o yolla değil, yetenek bildirimiyle çözülür.
 
 ## İzleme kanalını açmak
 

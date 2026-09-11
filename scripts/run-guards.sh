@@ -63,7 +63,7 @@ SUITE=(
   "fw|${FW_ROOT}/scripts/test-com-zeus-jakarta-api-kapsama.sh|CXF'in gerektirdiği jakarta.*-api'ler module.xml'in base dalında export ediliyor mu"
   "fw|${FW_ROOT}/scripts/test-generator-wiring.sh|Üreteç doğru çağrılıyor + listeler güncel mi"
   "wf|${FW_ROOT}/scripts/test-module-liste-esitligi.sh|Kurulu module ↔ üretilen dışlama listesi iki yönlü eşit mi"
-  "wf|${FW_ROOT}/scripts/test-autoconfig-sahipligi.sh|Kurulu module'deki her autoconfig sınıfı bir yeteneğe ya da HER_ZAMAN_SERBEST'e düşüyor mu"
+  "wf|${FW_ROOT}/scripts/test-autoconfig-sahipligi.sh|Kurulu module'deki her autoconfig sınıfı sınıflandırılmış mı + yetenek işaretçi sınıflarının kaynağı yerinde mi"
   "app-both|${FW_ROOT}/scripts/test-soap-slot-property.sh|zeus.soap.module.slot her tipte çözülüyor mu"
   "app-std|${FW_ROOT}/scripts/test-war-packaging.sh|Standart tip WAR içeriği (uçtan uca build)"
   "app-soap|${FW_ROOT}/scripts/test-war-packaging-soap.sh|SOAP tipi WAR içeriği (uçtan uca build)"
