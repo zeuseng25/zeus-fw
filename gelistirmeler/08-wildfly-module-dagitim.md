@@ -202,7 +202,8 @@ Detay ve yenileme prosedürü: `17-module-yenileme-runbook.md`.
 > (ya da ilgili yeteneğin beklediği minimum property'yi vermek — ör. AI için sahte bir
 > `spring.ai.openai.api-key=kullanilmiyor`). Bu metin artık **çözüm önerisi DEĞİLDİR** — yukarıdaki
 > opt-in mekanizmasıyla değiştirildi (kanıt: `zeus-sample-soap`'ın bu workaround'u 14 satırdan
-> 1 satıra indi, bkz. `21-yetenek-opt-in.md`). Bu repodaki yerleşik desen gereği eski metin
+> 7 satıra, 5 workaround property'den 1 yetenek bildirimine indi, bkz. `21-yetenek-opt-in.md`).
+> Bu repodaki yerleşik desen gereği eski metin
 > **silinmedi**, tarihsel not olarak burada bırakıldı — bu iki çözümün NEDEN birbirinin yerini
 > aldığını anlamak isteyen için.
 

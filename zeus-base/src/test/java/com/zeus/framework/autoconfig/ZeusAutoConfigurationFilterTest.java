@@ -198,8 +198,10 @@ class ZeusAutoConfigurationFilterTest {
     @Test
     void beanClassLoaderYokkenKendiYukleyicisineDuserVeCalisir() {
         // Fix round 2 (Task 6, Part B #1): beanClassLoader null ise ARTIK sessizce atlanmaz;
-        // Boot'un kendi AutoConfigurationImportSelector#getConfigurationClassFilter'ıyla AYNI
+        // Boot'un kendi AutoConfigurationImportSelector#checkExcludedClasses'ıyla AYNI
         // fallback uygulanır: (beanClassLoader != null) ? beanClassLoader : getClass().getClassLoader().
+        // (getConfigurationClassFilter() bu null kontrolünü yapmaz; deseni aynı sınıfın
+        // checkExcludedClasses metodundan taklit ediyoruz.)
         // Bu sınıf (ZeusAutoConfigurationFilter) zeus-base jar'ının içinde yaşar ve zeus-base
         // her zaman WAR'ın WEB-INF/lib'indedir (zeus jar'ları com.zeus module'üne GİRMEZ) —
         // dolayısıyla kendi classloader'ı zaten doğru yükleyicidir.

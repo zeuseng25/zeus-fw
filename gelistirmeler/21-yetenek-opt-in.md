@@ -221,7 +221,9 @@ Spring'in kendisinin bean classloader'ı ile yüklediği ve gerçek deploy'da ka
 ### Ek dayanıklılık: `beanClassLoader == null` iken de denetim çalışır
 
 `ZeusAutoConfigurationFilter`, Spring'in kendi
-`AutoConfigurationImportSelector#getConfigurationClassFilter`'ıyla AYNI fallback'i uygular:
+`AutoConfigurationImportSelector#checkExcludedClasses`'ıyla AYNI fallback'i uygular (bu deseni
+taşıyan `getConfigurationClassFilter` DEĞİL — o, `beanClassLoader`'ı null kontrolsüz geçirir;
+fallback aynı sınıfın `checkExcludedClasses` metodunda yaşar):
 `beanClassLoader` (Spring gerçek koşuda `invokeAwareMethods` ile HER ZAMAN set eder) `null`
 gelirse, sınıfın KENDİ classloader'ı (`getClass().getClassLoader()`) kullanılır. Bu güvenli bir
 varsayımdır çünkü `zeus-base` her zaman WAR'ın `WEB-INF/lib`'indedir (zeus jar'ları
