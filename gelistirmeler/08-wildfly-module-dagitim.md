@@ -164,12 +164,17 @@ WildFly'da sunucunun module'ünden**.
 
 **Bu kural jar KOPYASI içindir, module IMPORT'u için değil.** Devralınan bir util katmanı
 sürücü sınıflarına kod olarak bağlıysa (`Class.forName`, `OracleConnection` unwrap,
-`OracleTypes.CURSOR`) ince WAR'da deploy `could not load JDBC driver class` ile düşer. Çözüm,
-sunucunun **kendi** `com.oracle.ojdbc` module'ünü deployment descriptor'ına import etmektir:
-JCA'nın kullandığı module'ün aynısı olduğu için sınıf kimliği tek kalır, çakışma olmaz.
-Mekanizma opt-in bir property'dir (`zeus.descriptor.extra.modules`) —
-`10-versiyonlu-slot-uretilen-descriptor.md`. Yasak olan hâlâ jar'ı WAR'a veya `com.zeus`'a
-**kopyalamaktır**.
+`OracleTypes.CURSOR`) ince WAR'da deploy `could not load JDBC driver class` ile düşer. Doğru
+çözümün yönü, sunucunun **kendi** `com.oracle.ojdbc` module'ünü deployment descriptor'ına
+import etmektir: JCA'nın kullandığı module'ün aynısı olduğu için sınıf kimliği tek kalır,
+çakışma olmaz. Yasak olan hâlâ jar'ı WAR'a veya `com.zeus`'a **kopyalamaktır**.
+
+> **Bunu yapan opt-in property (`zeus.descriptor.extra.modules`) 2026-09-11'de SİLİNDİ**
+> (commit `1b08cb8`) — descriptor içeriği TİP kararıdır, uygulama kararı değil. Yani bugün
+> bir uygulamanın kendi pom'undan module import etmesinin yolu YOKTUR; property yazılırsa
+> sessizce etkisizdir. İhtiyaç duyan uygulama ya util'in sürücü bağımlılığını kaldırır ya da
+> `com.oracle.ojdbc`'yi import eden YENİ bir tipe geçer (yeni parent + yeni descriptor).
+> İkisi de henüz yapılmadı. Ayrıntı: `10-versiyonlu-slot-uretilen-descriptor.md`.
 
 **Module geniştir, uygulama dardır — daraltma uygulamanın işidir.** Module tüm uygulamaların
 birleşimi olduğu için, bir uygulama kullanmadığı yeteneklerin jar'larını da classpath'inde
