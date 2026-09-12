@@ -183,11 +183,28 @@ kaldığı sürece, `zeus.soap.enabled=false` yazan bir uygulama — ki bu cüml
 kilitlendi.
 
 `zeus-database` bugün bu simetriyi **taşımıyor** (kendi autoconfig'leri `zeus.database.enabled`
-ile koşullu değil); bu, bilinçli olarak ayrı ele alınan açık bir sorudur. Bugün için zararsız
-olmasının sebebi, o modülün bean'lerinin `@ConditionalOnBean(EntityManagerFactory.class)` ve
-`@ConditionalOnSingleCandidate(DataSource.class)` ile koşullu olmasıdır: yetenek kapalıyken
-`DataSource`/`EntityManagerFactory` hiç kurulmaz, dolayısıyla zeus bean'leri de sessizce
-kurulmaz — CXF `Bus`'ındaki gibi **zorunlu bir constructor bağımlılığı** yoktur, açılış düşmez.
+ile koşullu değil); bu, bilinçli olarak ayrı ele alınan açık bir sorudur.
+
+**Açılışın düşmemesinin sebebi şudur ve yalnızca şudur:** `zeus-database`'in hiçbir bean'i,
+filtrenin kaldırabileceği bir bean'e **zorunlu constructor bağımlılığı** taşımaz — CXF'te
+`ZeusSoapEndpointRegistrar`'ın `Bus`'a bağlı olması gibi bir durum yoktur. Koşullar sağlanmazsa
+bean kurulmaz, kimse onu zorunlu tutmadığı için de açılış düşmez.
+
+> **Yanlış anlaşılmasın:** "yetenek kapalıyken `DataSource` hiç kurulmaz" **doğru değildir.**
+> `ZeusJndiDataSourceAutoConfiguration` yalnız `@Conditional(OnZeusJndiCondition)` ile kapılıdır
+> (koşul `zeus.database.oracle-jndi` property'sine bakar, `zeus.database.enabled`'a DEĞİL).
+> Dolayısıyla WildFly'da `zeus.database.enabled=false` yazılmış olsa bile bu autoconfig yüklenir
+> ve `@Primary DataSource zeusPrimaryDataSource()` ile `StoredProcedureExecutors`'ı kurar —
+> yani yetenek "kapalı" iken datasource yığınını Spring Boot değil **zeus'un kendisi** ayağa
+> kaldırır. Aynı şekilde `ZeusCorrelationDataSourceAutoConfiguration` da kendi
+> `BeanPostProcessor`'ını `zeus.database.enabled`'dan bağımsız kaydeder.
+> Yalnız `ZeusDatabaseAutoConfiguration`'ın bean'leri gerçekten `@ConditionalOnBean(EntityManagerFactory)`
+> ile susar.
+>
+> Bu bir arıza değil, bir **isim fazlalığıdır**: `zeus.database.enabled` bugün 3. parti
+> autoconfig'leri (JDBC/Hibernate/JPA) yönetir, `zeus-database` modülünün kendisini değil.
+> Simetriyi kurmak isteyen bir gelecekteki değişiklik, önce bu üç autoconfig'in hangisinin
+> yeteneğe bağlanacağına karar vermek zorundadır.
 
 ## Yetenek tablosu
 

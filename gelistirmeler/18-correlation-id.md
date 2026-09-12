@@ -185,7 +185,7 @@ o yetenekleri kullanmasa bile.
 > uygulamanın değil FRAMEWORK'ün işidir.** Uygulama `spring.autoconfigure.exclude` yazmaz;
 > yalnız **kullandığı** yetenekler için tek satırlık bir bildirim yazar
 > (`zeus.<yetenek>.enabled=true`), kullanmadığı için hiçbir şey yazmaz. Mekanizma:
-> `21-yetenek-opt-in.md`; aynı güncelleme doküman 08'de de yapılıdır.
+> `21-yetenek-opt-in.md`; aynı güncelleme doküman 08'de de yapılmıştır.
 >
 > **TARİHSEL NOT — bu kutunun eski hâli** şunu söylüyordu: "uygulama, module'de olup
 > kendisinin kullanmadığı yetenekleri `spring.autoconfigure.exclude` ile (ya da gereken
