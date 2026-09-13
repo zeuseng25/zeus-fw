@@ -145,6 +145,8 @@ SLOT=1.1.0 WILDFLY_HOME=/path/staging ./scripts/verify-staging.sh <app>  # resta
 
 Her bileşen/geliştirme `gelistirmeler/` altında **numaralı** md dosyasına yazılır: `NN-bilesen-adi.md`. Genel mimari `00-Genel-Mimari.md`. Yeni bileşende sıradaki numarayla yeni dosya açılır.
 
+**Sıfırdan kurulum / onboarding:** `gelistirmeler/22-kurulum-rehberi.md` — platform tarafında hangi script koşulur, tüketen uygulamanın yedi zorunluluğu, ve benzeri bir framework kuracaklar için taşıyıcı kurallar.
+
 ## Kısıtlar
 
 - `.md` dosyaları yalnızca bu proje dizinine yazılır.
