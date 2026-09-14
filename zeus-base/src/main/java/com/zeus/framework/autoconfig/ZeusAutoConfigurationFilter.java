@@ -151,11 +151,24 @@ public class ZeusAutoConfigurationFilter
             if (!vetoLoglanan.add(yetenek.ad())) {
                 continue;   // bu yetenek için satır zaten basıldı
             }
-            // İki farklı sebep, iki farklı cümle: property hiç yazılmamış olabilir ya da
-            // BİLİNÇLİ olarak kapatılmış olabilir. Operatör hangisi olduğunu logdan görmeli.
-            String bildirim = environment.containsProperty(yetenek.property())
-                    ? "%s=%s".formatted(yetenek.property(), environment.getProperty(yetenek.property()))
-                    : "%s yazılmamış".formatted(yetenek.property());
+            // ÜÇ farklı sebep, üç farklı cümle. Operatör hangisi olduğunu logdan görmeli:
+            //   1. property hiç yazılmamış → normal, beklenen durum
+            //   2. yazılmış ama BOŞ        → neredeyse her zaman KAZA (unutulmuş satır, ya da
+            //      çözülmemiş yer tutucu: 'zeus.ai.enabled=${AI_ENABLED}' + AI_ENABLED tanımsız).
+            //      containsProperty() boş değerde de true döner; bu dal ayrılmazsa mesaj
+            //      "(zeus.ai.enabled=)" diye yarım render olur ve logging arızası gibi görünür —
+            //      üstelik tam da mesajın en çok işe yarayacağı durumda.
+            //   3. bilinçli olarak false   → kullanıcının kararı
+            String deger = environment.getProperty(yetenek.property());
+            String bildirim;
+            if (deger == null) {
+                bildirim = "%s yazılmamış".formatted(yetenek.property());
+            } else if (deger.isBlank()) {
+                bildirim = "%s BOŞ bırakılmış — değer verilmediği için varsayılan (kapalı) uygulandı"
+                        .formatted(yetenek.property());
+            } else {
+                bildirim = "%s=%s".formatted(yetenek.property(), deger);
+            }
             log.info("Zeus: '{}' yeteneği KAPALI ({}) — {} autoconfig veto edildi. Açmak için: {}=true",
                     yetenek.ad(), bildirim, girdi.getValue(), yetenek.property());
         }

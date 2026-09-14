@@ -258,6 +258,24 @@ class ZeusAutoConfigurationFilterTest {
     }
 
     @Test
+    void logSatiriBosBirakilmisPropertyyiKazaOlarakAyirtEder() {
+        // ÜÇÜNCÜ durum: property YAZILMIŞ ama değeri BOŞ. containsProperty() burada da true
+        // döner, dolayısıyla "yazılmış" dalına düşer ve ayrı ele alınmazsa mesaj
+        // "(zeus.ai.enabled=)" diye yarım render olurdu — logging arızası gibi görünen,
+        // hiçbir şey anlatmayan bir satır. Oysa boş değer neredeyse her zaman bir KAZADIR
+        // (unutulmuş satır ya da çözülmemiş ${AI_ENABLED} yer tutucusu), yani mesajın en çok
+        // işe yaraması gereken durum. Davranış değişmez: yetenek yine kapalıdır.
+        MockEnvironment env = new MockEnvironment().withProperty("zeus.ai.enabled", "");
+        List<String> satirlar = logSatirlari(
+                f -> f.match(new String[] {AI}, null), env, sayanYukleyici(new AtomicInteger()));
+
+        assertThat(satirlar).containsExactly(
+                "Zeus: 'ai' yeteneği KAPALI (zeus.ai.enabled BOŞ bırakılmış — değer verilmediği "
+                        + "için varsayılan (kapalı) uygulandı) — 1 autoconfig veto edildi. "
+                        + "Açmak için: zeus.ai.enabled=true");
+    }
+
+    @Test
     void logSatiriYetenekBasinaBirKezBasilir() {
         // Sınıf başına DEĞİL, match() çağrısı başına DA değil: uygulama başına (yetenek başına) bir kez.
         List<String> satirlar = logSatirlari(f -> {
