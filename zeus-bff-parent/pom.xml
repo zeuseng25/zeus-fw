@@ -47,6 +47,50 @@
             <artifactId>spring-boot-starter-tomcat</artifactId>
             <scope>provided</scope>
         </dependency>
+
+        <!-- ═══════════ JENERİK TABAN — uygulama bunları YAZMAZ ═══════════
+             Bu tipi seçen her uygulamada bulunması gereken, HİÇBİRİ ZEUS'A ÖZGÜ OLMAYAN
+             altyapı bağımlılıkları. Amaç: her BFF uygulamasının aynı dört satırı kopyalaması.
+
+             NEDEN PARENT'TA, bir starter'ın içinde DEĞİL: starter'lar YATAY kompoze olur
+             (bir yetenek = bir starter — zeus-bff-starter, zeus-bff-login). Jenerik tabanı
+             bunlardan birinin içine gömmek o bileşeni "hem yetenek hem taban" hâline getirir
+             ve bileşenler birbirini çekmeye başlar. Tipi tanımlayan yer parent'tır.
+
+             ZEUS MODÜLLERİ (zeus-base, zeus-logger, zeus-bff-starter) BURAYA GİRMEZ:
+             onları uygulama kendi pom'unda bildirir — hangi zeus yeteneklerini kullandığı
+             uygulamanın kendi kararıdır ve pom'una bakan biri bunu görebilmelidir.
+
+             BURAYA NE GİRER — tek ölçüt: "Bu tipi seçip bunu İSTEMEYEN bir uygulama olabilir mi?"
+             Hayır ise buraya girer. Evet ise <dependencyManagement>'a girer, uygulama yazar.
+             Ölçüt gevşetilemez: miras alınan bir <dependencies> girdisi çocuk pom'dan
+             KALDIRILAMAZ (<exclusions> yalnız transitive olanlar içindir). -->
+        <dependency>
+            <!-- Web katmanı: BFF tanımı gereği HTTP sunar. Ölçüldü: dört örnek uygulamanın
+                 DÖRDÜ de bunu tek tek yazıyordu. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <!-- @Valid / Bean Validation. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <!-- @ConfigurationProperties metadata üreteci (IDE tamamlaması + doğrulama).
+                 optional: yalnız derleme zamanı aracıdır, WAR'a GİRMEZ. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <!-- zeus-parent'ta annotationProcessorPaths ZATEN lombok'u içerir (pom.xml:170-176);
+                 eksik olan yalnız bağımlılığın kendisiydi ve her uygulama elle yazıyordu.
+                 provided: derleme zamanı anotasyonları; fat WAR'a girmemeli. -->
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
     </dependencies>
 
 </project>

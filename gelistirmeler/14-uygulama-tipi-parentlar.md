@@ -244,6 +244,40 @@ uygulamanın module'e bağlandığını sanır. Risk sıfırdır: `descriptor-bf
   `/bff-app` context'inde `Path=/proxy/**` route'unda `StripPrefix=2` gerekir
   (1 = context segmentini keser). Doğrulanmış örnek aşağıda.
 
+## Tip parent'ı neyi otomatik verir (jenerik taban)
+
+Bir tip parent'ı yalnız plugin/paketleme davranışını değil, o tipin **jenerik taban
+bağımlılıklarını** da verir — yani hiçbiri zeus'a özgü olmayan, o tipi seçen her uygulamada
+bulunması gereken altyapı. Uygulama bunları yazmaz.
+
+| Tip | Parent'tan miras gelen jenerik taban | Uygulama yazar |
+|---|---|---|
+| BFF | `spring-boot-starter-webmvc`, `spring-boot-starter-validation`, `spring-boot-configuration-processor` (optional), `lombok` (provided), `spring-boot-starter-tomcat` (provided) | Kullandığı **zeus yetenekleri**: `zeus-base`, `zeus-logger`, `zeus-bff-starter`, gerekiyorsa `zeus-bff-login` — ve uygulamaya özel her şey |
+
+**Zeus modülleri tabana GİRMEZ.** Hangi zeus yeteneklerine dokunduğu uygulamanın kendi
+kararıdır ve pom'una bakan biri bunu görebilmelidir. Parent'ın işi, herkeste aynı olan
+jenerik altyapıyı tekrar ettirmemektir.
+
+**Buraya ne girer — tek ölçüt:** *"Bu tipi seçip bunu İSTEMEYEN bir uygulama olabilir mi?"*
+Hayır ise parent'ın `<dependencies>`'ine. Evet ise `<dependencyManagement>`'a girer ve uygulama
+bildirir. Ölçüt gevşetilemez: **miras alınan bir `<dependencies>` girdisi çocuk pom'dan
+KALDIRILAMAZ** (`<exclusions>` yalnız transitive olanlar içindir). "Çoğu uygulama ister"
+yeterli bir gerekçe değildir; "istemeyeni bu tip değildir" gerekir.
+
+**Neden parent'ta, bir starter'ın içinde değil.** Starter'lar YATAY kompoze olur: bir yetenek =
+bir starter (`zeus-bff-starter`, `zeus-bff-login`). Jenerik tabanı bunlardan birinin içine
+gömmek o bileşeni "hem yetenek hem taban" hâline getirir ve bileşenler birbirini çekmeye başlar.
+Tipi tanımlayan yer parent'tır; starter'lar tipe takılan yeteneklerdir.
+
+**Derleme-zamanı araçlarının scope'una dikkat.** `lombok` `provided`, `configuration-processor`
+`optional`'dır — fat WAR'da scope belirtilmezse ikisi de `WEB-INF/lib`'e girer. Doğrulandı:
+`zeus-sample-bff`'in WAR'ında ikisi de **yok**, ve taban parent'a taşındıktan sonra WAR içeriği
+öncekiyle **birebir aynı** (53 jar).
+
+> **Not:** `zeus-standalone-parent` bu tabanı henüz taşımıyor. `zeus-parent` (ince WAR tipleri)
+> ayrı bir konudur: oraya eklenen her bağımlılık `com.zeus` sözleşmesini ve üretilen dışlama
+> listesini de değiştirir, aynı kalıpla ele alınamaz.
+
 ## Uygulama ekipleri için kurallar
 
 1. **Parent seçimi tip seçimidir**: REST → zeus-parent, SOAP → zeus-soap-parent,
