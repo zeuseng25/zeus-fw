@@ -53,6 +53,17 @@ class ToolDescriptionSnapshotTest {
     }
 
     @Test
+    void editFileAciklamasiGercekParametreAdlariniKullanir() {
+        // Spring AI tool JSON şemasını Java parametre adlarından üretir (oldString/newString);
+        // açıklama bunun yerine old_string/new_string derse model şema doğrulamasında başarısız olur.
+        String d = aciklamalar().get("editFile");
+        assertThat(d).contains("oldString");
+        assertThat(d).contains("newString");
+        assertThat(d).doesNotContain("old_string");
+        assertThat(d).doesNotContain("new_string");
+    }
+
+    @Test
     void writeFileAciklamasiOkumadanDuzenlenebileceginiAnlatir() {
         String d = aciklamalar().get("writeFile");
         assertThat(d).contains("Az önce writeFile ile yazdığın bir dosyayı ayrıca okumana gerek yok");

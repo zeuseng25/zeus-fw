@@ -101,10 +101,10 @@ public class WorkspaceTools {
 
             Kullanım:
             - Önce readFile ile okumalısın; okumadan düzenleme REDDEDİLİR.
-            - old_string dosyada tek bir yerde geçmelidir; birden çok eşleşme varsa hata döner \
+            - oldString dosyada tek bir yerde geçmelidir; birden çok eşleşme varsa hata döner \
             (hangisinin kastedildiği bilinemez) — daha uzun ve benzersiz bir parça ver.
             - Okuma çıktısındaki girintiyi birebir koru ve durum başlığını (@@ ... @@) \
-            old_string veya new_string içine ASLA koyma.""")
+            oldString veya newString içine ASLA koyma.""")
     public String editFile(
             @ToolParam(description = "Mutlak dosya yolu") String filePath,
             @ToolParam(description = "Değiştirilecek birebir metin") String oldString,
