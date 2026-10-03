@@ -68,6 +68,9 @@
         <!-- Uygulamanın @Tool metotlarını MCP sunucusu olarak harici ajanlara yayınlar.
              zeus-ai'ye bağımlıdır → reaktörde ondan SONRA gelir. -->
         <module>zeus-ai-mcp</module>
+        <!-- Çok adımlı araştırma ajanı harness'ı: çalışma alanı + dosya tool'ları + bütçe.
+             zeus-ai'ye bağlıdır → reaktörde ondan SONRA gelir. -->
+        <module>zeus-ai-agent</module>
         <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
         <module>zeus-soap</module>
         <module>zeus-sms</module>

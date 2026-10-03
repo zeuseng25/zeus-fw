@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-ai-agent</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus AI Agent</name>
+    <description>Çok adımlı araştırma ajanı harness'ı: koşu kapsamlı çalışma alanı (sanal dosya
+        sistemi) + dosya tool'ları + adım/token/süre bütçesi. Spring AI 2.0'ın tool döngüsünü
+        (ToolCallingAdvisor) aynen kullanır; YENİ 3. PARTİ BAĞIMLILIK GETİRMEZ, bu yüzden
+        paylaşımlı com.zeus module'ü ve WildFly restart'ı etkilenmez.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- ChatClient / ChatModel / ToolCallingAdvisor / @Tool buradan geçişli gelir
+             (zeus-ai -> spring-ai-starter-model-openai). Harness Spring AI'ın
+             *.autoconfigure paketlerine DERLEME bağımlılığı kurmaz; sıralama afterName
+             ile dize olarak verilir. -->
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-ai</artifactId>
+        </dependency>
+    </dependencies>
+
+</project>
