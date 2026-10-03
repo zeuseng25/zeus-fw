@@ -65,10 +65,12 @@ SUITE=(
   "wf|${FW_ROOT}/scripts/test-module-liste-esitligi.sh|Kurulu module ↔ üretilen dışlama listesi iki yönlü eşit mi"
   "wf|${FW_ROOT}/scripts/test-autoconfig-sahipligi.sh|Kurulu module'deki her autoconfig sınıfı sınıflandırılmış mı + yetenek işaretçi sınıflarının kaynağı yerinde mi"
   "app-both|${FW_ROOT}/scripts/test-soap-slot-property.sh|zeus.soap.module.slot her tipte çözülüyor mu"
+  "app-std|${FW_ROOT}/scripts/test-mcp-opt-in-butunlugu.sh|MCP yeteneğini açan uygulamanın pom'unda zeus-ai-mcp var mı + taşıma/sır bildirimi doğru mu"
   "app-std|${FW_ROOT}/scripts/test-war-packaging.sh|Standart tip WAR içeriği (uçtan uca build)"
   "app-soap|${FW_ROOT}/scripts/test-war-packaging-soap.sh|SOAP tipi WAR içeriği (uçtan uca build)"
   "app-std+wf|${FW_ROOT}/scripts/test-coverage-guard.sh|Module'de olmayan bağımlılık deploy'u durdurmuyor"
   "app-std+wf|${FW_ROOT}/scripts/verify-module-coverage.sh ${APP_STD}|Deploy ön-kontrolü (gerçek app + gerçek sunucu)"
+  "app-std+wf|${FW_ROOT}/scripts/test-mcp-uctan-uca.sh|MCP ucu: fail-closed + tools/list + tools/call + correlation-id/thread (gerçek protokol)"
 )
 
 # Ön koşul karşılanıyor mu? Karşılanmıyorsa NEDENİNİ stdout'a basar ve 1 döner.

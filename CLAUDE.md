@@ -49,6 +49,7 @@ spring-boot-starter-parent:4.0.7
 | database | `zeus-database` | ✅ gerçek | `StoredProcedureExecutor` (JDBC, önbellekli) + `JpaStoredProcedureExecutor` |
 | service | `zeus-service` | ✅ gerçek | `AbstractCrudService` + `DtoMapper` |
 | ai | `zeus-ai` | ✅ gerçek | `ZeusAiAssistant` (sohbet + yapılandırılmış çıktı + tool calling) — Spring AI 2.x, OpenAI-uyumlu endpoint (vLLM/LiteLLM/OpenRouter). Bkz. `gelistirmeler/15-zeus-ai.md` |
+| ai-mcp | `zeus-ai-mcp` | ✅ gerçek | Uygulamanın MEVCUT `@Tool` metotlarını MCP sunucusu olarak harici ajanlara yayınlar (streamable HTTP, `/api/mcp`). Yayın yüzeyi açık kayıt bean'i (`ZeusMcpTools`), erişim paylaşılan sır + fail-closed, her çağrı audit'li. Bkz. `gelistirmeler/23-zeus-ai-mcp.md` |
 | redis | `zeus-redis` | 🚧 iskelet | RedisTemplate/cache (planlanan) |
 | batch | `zeus-batch` | 🚧 iskelet | Spring Batch job/step (planlanan) |
 | soap | `zeus-soap` | ✅ gerçek | `ZeusSoapEndpointRegistrar` — `@WebService` bean'lerini `/services/*` altında yayınlar (Apache CXF / JAX-WS). SOAP tipi uygulamalar için. Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
@@ -76,7 +77,7 @@ Her modül, bağımlılık eklenince kendiliğinden devreye girer (Spring Boot s
 ## Yetenek Opt-in'i (paylaşımlı module'ün autoconfig yan etkisi)
 
 `com.zeus` module'ü tüm uygulamaların bağımlılık **birleşimi**dir ve daraltılmaz — AI'lı ve
-AI'sız uygulama aynı module'ü paylaşır. Bir yeteneğin (bugün: `ai`, `database`, `soap`) 3. parti
+AI'sız uygulama aynı module'ü paylaşır. Bir yeteneğin (bugün: `ai-mcp`, `ai`, `database`, `soap`) 3. parti
 autoconfig'leri, tüketen uygulama o yeteneği `zeus.<yetenek>.enabled=true` ile **açıkça
 istemedikçe** hiç devreye girmez — bunu `zeus-base`'deki `ZeusCapabilities` (kayıt) +
 `ZeusAutoConfigurationFilter` (filtre) + `ZeusCapabilityVerifier` (bağımlılık var ama property
@@ -90,6 +91,13 @@ getiriyorsa** (aşağıdaki "Yeni Modül Ekleme Kuralı"nın bir parçası olara
 `ZeusCapabilities.HEPSI`'ye YENİ bir yetenek olarak kaydedilmelidir — aksi hâlde o modülün
 autoconfig'leri hiçbir opt-in olmadan **her** uygulamada çalışmaya başlar ve
 `test-autoconfig-sahipligi.sh` build'i kırar.
+
+**ÖNEK SIRASI:** `HEPSI` bir listedir ve `sahipBul` `findFirst()` kullanır. Bir yeteneğin öneki
+başka bir yeteneğin önekinin ALT KÜMESİ ise, dar olan ÖNCE gelmelidir — ör. `ai-mcp`
+(`org.springframework.ai.mcp.`) `ai`'den (`org.springframework.ai.`) önce. Ters sırada dar
+yeteneğin anahtarı hiçbir şey yapmaz ve autoconfig'leri geniş yeteneğin anahtarıyla açılır.
+**`test-autoconfig-sahipligi.sh` bu hatayı YAKALAMAZ** (geniş önek de sınıflandırır, ters sırada
+da yeşil kalır); sıranın bekçisi `zeus-base`'deki `ZeusCapabilitiesSiralamaTest`'tir.
 
 ## Yeni Modül / Yeni Kod Ekleme Kuralı
 

@@ -229,6 +229,49 @@ WAR'dan atılır ama module başka bir üreticinin sınıflarını sağlar → `
 Bu, "sürümden bağımsız artifactId eşleşmesi" kararının kabul edilmiş bedelidir; bugün
 bilinen bir örneği yoktur, ama yeni bir bağımlılık eklenirken akılda tutulmalıdır.
 
+**İlk yakın temas (2026-10-03, `zeus-ai-mcp`).** Risk ilk kez somut bir adayla karşılaştı ve
+zararsız çıktı — kaydı, bir dahaki sefer için ölçüm yöntemini de gösterdiği için burada:
+MCP zincirinin izole bir probe pom'undaki çözümlemesi `tools.jackson.dataformat:jackson-dataformat-yaml`
+(Jackson 3 hattı) istiyordu; module'de ise `com.fasterxml.jackson.dataformat:jackson-dataformat-yaml`
+(Jackson 2) vardı — **aynı artifactId, iki farklı groupId**. Dışlama listesi artifactId ile
+eşleştiği için ikisini ayırt edemezdi. Ancak **gerçek aggregator kapanışında** bu durum oluşmadı:
+`json-schema-validator` orada 3.0.1'e çözülüyor (izole probe'ta 3.0.0) ve Jackson 3 yaml hattını
+hiç çekmiyor. Ders iki katlı: *(a)* kapanış iddiaları **izole probe'ta değil, gerçek
+`zeus-wildfly-module` üzerinde** ölçülmelidir — izole probe yalnız "bu starter neyi ister"
+sorusunu yanıtlar, "birleşime ne eklenir" sorusunu yanıtlamaz; *(b)* böyle bir çift gerçekten
+girerse yalnız module **iki hattı da taşıdığı sürece** güvenlidir.
+
+## Kapsam denetiminin yakalayamadığı sınıf: anotasyon taraması
+
+Üretilen dışlama listesi ve `verify-module-coverage.sh` **"jar module'de var mı?"** sorusunu
+cevaplar. Cevaplayamadığı soru: **"module'deki sınıflar link olur / kurulur mu?"** Bu ailenin
+iki ölçülmüş üyesi var ve ikisi de **yeşil kapsamla birlikte** yaşandı:
+
+1. **`jakarta.websocket` (Spring AI eklenirken).** Module'e `spring-webflux` girince WildFly'ın
+   POST_MODULE anotasyon taraması `StandardWebSocketHandlerAdapter`'ı link etmeye çalıştı;
+   `jakarta.websocket.api` module.xml'in export listesine eklenerek çözüldü.
+   Bkz. `../spring-wildfly-arch/gelistirmeler/18-spring-ai-entegrasyonu.md`.
+
+2. **`@WebServlet` (zeus-ai-mcp eklenirken, 2026-10-03).** `mcp-core-2.0.0.jar` üç sınıfını
+   `@WebServlet(asyncSupported=true)` ile işaretliyor
+   (`HttpServletStatelessServerTransport`, `HttpServletStreamableServerTransportProvider`,
+   `HttpServletSseServerTransportProvider`); üçü de builder ile kurulur ve **no-arg ctor'u
+   yoktur**. `com.zeus` `annotations="true"` ile import edildiği ve `install-zeus-module.sh`
+   **her** jar'a Jandex index gömdüğü için bu sınıflar deployment'ın composite index'ine girer;
+   WildFly onları servlet bildirimi sanıp kurmaya çalışır ve deploy düşer:
+   `NoSuchMethodException: ...HttpServletStatelessServerTransport.<init>()`.
+
+   **Jandex'i o jar için atlamak çözüm DEĞİLDİR**: `install-zeus-module.sh`'ın yorumu kısmi
+   index'in `@HandlesTypes` taramasını **sessizce** bozduğunu ölçülmüş arıza olarak kaydeder.
+   Çözüm `zeus-war-defaults/descriptor-standard/web.xml` → `metadata-complete="true"` oldu;
+   bu, aynı descriptor'daki subsystem dışlamalarıyla (`weld`, `batch-jberet`, `jsf`, `jaxrs`)
+   aynı aileden bir önlemdir — servlet (undertow) subsystem'i dışlanamadığı için kol oradadır.
+   Ayrıntı: `23-zeus-ai-mcp.md`.
+
+**Kural:** module'e yeni bir 3. parti jar girdiğinde kapsam denetiminin yeşil olması YETMEZ;
+gerçek bir deploy yapılmalıdır. Bu yüzden `test-mcp-uctan-uca.sh` gibi uçtan uca guard'lar
+kapsam guard'larının yerine değil, **yanına** konur.
+
 ## Doğrulama planı
 
 | Kapı | Beklenen | Sonuç |
