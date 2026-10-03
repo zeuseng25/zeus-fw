@@ -39,7 +39,7 @@ class WorkspaceToolsTest {
 
         String out = tools.editFile("/r.md", "merhaba", "selam");
 
-        assertThat(out).contains("önce read_file");
+        assertThat(out).contains("önce readFile");
         assertThat(ws.read("/r.md", 0, 10).content()).isEqualTo("merhaba"); // değişmedi
     }
 

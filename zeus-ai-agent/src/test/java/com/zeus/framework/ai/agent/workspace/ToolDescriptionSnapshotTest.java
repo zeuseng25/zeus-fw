@@ -47,9 +47,15 @@ class ToolDescriptionSnapshotTest {
     @Test
     void editFileAciklamasiOkumaSartiniVeBaslikYasaginiAnlatir() {
         String d = aciklamalar().get("editFile");
-        assertThat(d).contains("Önce read_file ile okumalısın");
+        assertThat(d).contains("Önce readFile ile okumalısın");
         assertThat(d).contains("durum başlığını");
         assertThat(d).contains("tek bir yerde");
+    }
+
+    @Test
+    void writeFileAciklamasiOkumadanDuzenlenebileceginiAnlatir() {
+        String d = aciklamalar().get("writeFile");
+        assertThat(d).contains("Az önce writeFile ile yazdığın bir dosyayı ayrıca okumana gerek yok");
     }
 
     @Test

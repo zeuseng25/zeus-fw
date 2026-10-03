@@ -32,7 +32,7 @@ public class WorkspaceTools {
 
     @Tool(description = """
             Çalışma alanındaki dosyaları listeler (özyinelemeli).
-            Doğru dosyayı bulmak için read_file ya da edit_file'dan ÖNCE neredeyse her zaman \
+            Doğru dosyayı bulmak için readFile ya da editFile'dan ÖNCE neredeyse her zaman \
             bunu kullan.""")
     public String ls(@ToolParam(description = "Mutlak dizin yolu, ör. /") String path) {
         LsResult r = workspace.ls(path);
@@ -80,7 +80,9 @@ public class WorkspaceTools {
             Kullanım:
             - Yeni dosya oluşturmak ya da dosyayı baştan yazmak istediğinde kullan; \
             önce okumana gerek yoktur.
-            - Mevcut bir dosyanın bir kısmını değiştirecekesen write_file yerine edit_file tercih et.
+            - Mevcut bir dosyanın bir kısmını değiştireceksen writeFile yerine editFile tercih et.
+            - Az önce writeFile ile yazdığın bir dosyayı ayrıca okumana gerek yok; doğrudan \
+            editFile ile düzenleyebilirsin.
             - Araştırma bulgularını ve nihai raporu buraya yaz; sohbete uzun metin dökme.""")
     public String writeFile(
             @ToolParam(description = "Mutlak dosya yolu") String filePath,
@@ -98,7 +100,7 @@ public class WorkspaceTools {
             Dosyada birebir metin değişimi yapar.
 
             Kullanım:
-            - Önce read_file ile okumalısın; okumadan düzenleme REDDEDİLİR.
+            - Önce readFile ile okumalısın; okumadan düzenleme REDDEDİLİR.
             - old_string dosyada tek bir yerde geçmelidir; birden çok eşleşme varsa hata döner \
             (hangisinin kastedildiği bilinemez) — daha uzun ve benzersiz bir parça ver.
             - Okuma çıktısındaki girintiyi birebir koru ve durum başlığını (@@ ... @@) \
@@ -109,7 +111,7 @@ public class WorkspaceTools {
             @ToolParam(description = "Yerine yazılacak metin") String newString) {
 
         if (!okunanlar.contains(filePath)) {
-            return "HATA: bu dosya bu koşuda okunmadı — düzenlemeden önce read_file ile oku.";
+            return "HATA: bu dosya bu koşuda okunmadı — düzenlemeden önce readFile ile oku.";
         }
         EditResult r = workspace.edit(filePath, oldString, newString);
         if (r.error() != null) {
