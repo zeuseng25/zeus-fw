@@ -24,6 +24,9 @@ public final class WorkspaceResults {
         public static final String NO_MATCH = "no_match";
         public static final String MULTIPLE_MATCHES = "multiple_matches";
         public static final String TOO_LARGE = "too_large";
+        /** Dosya VAR ama istenen {@code offset} toplam satır sayısının dışında — {@code file_not_found}
+         * ile karıştırılmaz, çünkü o kod modele dosyanın hiç olmadığını söylerdi (yalan olurdu). */
+        public static final String OFFSET_OUT_OF_RANGE = "offset_out_of_range";
 
         private WorkspaceError() {
         }

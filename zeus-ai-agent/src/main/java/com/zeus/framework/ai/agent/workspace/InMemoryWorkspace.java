@@ -68,13 +68,17 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
         }
         String content = files.get(p);
         if (content == null) {
+            if (isDirectoryPrefix(p)) {
+                return ReadResult.error(WorkspaceError.IS_DIRECTORY);
+            }
             return ReadResult.error(WorkspaceError.FILE_NOT_FOUND);
         }
-        String[] lines = content.split("\n", -1);
+        String[] lines = splitLines(content);
         int total = lines.length;
         int from = Math.max(offset, 0);
         if (from >= total) {
-            return ReadResult.error(WorkspaceError.FILE_NOT_FOUND);
+            // Dosya VAR, sadece istenen pencere sınırın dışında — file_not_found DEĞİL.
+            return ReadResult.error(WorkspaceError.OFFSET_OUT_OF_RANGE);
         }
         int to = Math.min(from + Math.max(limit, 1), total);
         String body = String.join("\n", List.of(lines).subList(from, to));
@@ -87,6 +91,11 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
         String p = normalize(path);
         if (p == null) {
             return WriteResult.error(WorkspaceError.INVALID_PATH);
+        }
+        if (isDirectoryPrefix(p)) {
+            // p, var olan bir dosyanın dizin önekiyse (örn. /alt/a.txt varken /alt), sessizce
+            // çakışan bir dosya oluşturmak yerine reddet.
+            return WriteResult.error(WorkspaceError.IS_DIRECTORY);
         }
         String yeni = content == null ? "" : content;
         if (toplamBayt(p, yeni) > maxTotalBytes) {
@@ -104,6 +113,9 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
         }
         String content = files.get(p);
         if (content == null) {
+            if (isDirectoryPrefix(p)) {
+                return EditResult.error(WorkspaceError.IS_DIRECTORY);
+            }
             return EditResult.error(WorkspaceError.FILE_NOT_FOUND);
         }
         if (oldText == null || oldText.isEmpty()) {
@@ -142,7 +154,7 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
             if (!(e.getKey().equals(kok) || e.getKey().startsWith(prefix))) {
                 continue;
             }
-            String[] lines = e.getValue().split("\n", -1);
+            String[] lines = splitLines(e.getValue());
             for (int i = 0; i < lines.length; i++) {
                 // DÜZ METİN: contains, regex DEĞİL.
                 if (lines[i].contains(literal)) {
@@ -163,6 +175,27 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
         }
         String p = path.replaceAll("/{2,}", "/");
         return (p.length() > 1 && p.endsWith("/")) ? p.substring(0, p.length() - 1) : p;
+    }
+
+    /**
+     * İçeriği satırlara böler. Sondaki TEK bir {@code \n} bir sonraki (hayalet) boş satırı
+     * değil, önceki satırın sonlandırıcısını temsil eder — bu yüzden bölmeden önce atılır.
+     * ("a\nb\nc\n" → 3 satır, 4 DEĞİL.)
+     */
+    private static String[] splitLines(String content) {
+        String body = content.endsWith("\n") ? content.substring(0, content.length() - 1) : content;
+        return body.split("\n", -1);
+    }
+
+    /** {@code p}, saklanan en az bir dosyanın dizin öneki mi? (örn. {@code /alt/a.txt} varken {@code /alt}) */
+    private boolean isDirectoryPrefix(String p) {
+        String prefix = p.endsWith("/") ? p : p + "/";
+        for (String key : files.keySet()) {
+            if (key.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int toplamBayt(String degisenYol, String yeniIcerik) {

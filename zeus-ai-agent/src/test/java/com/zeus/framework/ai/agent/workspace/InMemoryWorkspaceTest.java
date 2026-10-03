@@ -104,4 +104,35 @@ class InMemoryWorkspaceTest {
         ws.write("/a.md", "içerik");
         assertThat(((InMemoryWorkspace) ws).snapshot()).containsEntry("/a.md", "içerik");
     }
+
+    @Test
+    void sondakiTekYeniSatirHayaletSatirOlusturmaz() {
+        ws.write("/t.txt", "a\nb\nc\n");
+
+        var r = ws.read("/t.txt", 0, 100);
+        assertThat(r.error()).isNull();
+        assertThat(r.totalLines()).isEqualTo(3);   // 4 DEĞİL — sondaki \n hayalet satır değildir.
+        assertThat(r.content()).isEqualTo("a\nb\nc");
+        assertThat(r.endLine()).isEqualTo(3);
+        assertThat(r.nextOffset()).isNull();
+    }
+
+    @Test
+    void varOlanDosyadaSinirDisiOffsetFileNotFoundDegildir() {
+        ws.write("/v.txt", "a\nb");
+
+        var r = ws.read("/v.txt", 5, 10);
+        assertThat(r.error()).isEqualTo(WorkspaceError.OFFSET_OUT_OF_RANGE);
+        assertThat(r.error()).isNotEqualTo(WorkspaceError.FILE_NOT_FOUND);
+    }
+
+    @Test
+    void dizinOnekiOlanYolIsDirectoryDondurur() {
+        ws.write("/alt/a.txt", "1");
+
+        // /alt kendisi bir dosya değil, /alt/a.txt'nin dizin öneki — file_not_found DEĞİL.
+        assertThat(ws.read("/alt", 0, 10).error()).isEqualTo(WorkspaceError.IS_DIRECTORY);
+        assertThat(ws.edit("/alt", "x", "y").error()).isEqualTo(WorkspaceError.IS_DIRECTORY);
+        assertThat(ws.write("/alt", "çakışan").error()).isEqualTo(WorkspaceError.IS_DIRECTORY);
+    }
 }
