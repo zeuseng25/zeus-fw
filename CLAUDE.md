@@ -50,6 +50,7 @@ spring-boot-starter-parent:4.0.7
 | service | `zeus-service` | ✅ gerçek | `AbstractCrudService` + `DtoMapper` |
 | ai | `zeus-ai` | ✅ gerçek | `ZeusAiAssistant` (sohbet + yapılandırılmış çıktı + tool calling) — Spring AI 2.x, OpenAI-uyumlu endpoint (vLLM/LiteLLM/OpenRouter). Bkz. `gelistirmeler/15-zeus-ai.md` |
 | ai-mcp | `zeus-ai-mcp` | ✅ gerçek | Uygulamanın MEVCUT `@Tool` metotlarını MCP sunucusu olarak harici ajanlara yayınlar (streamable HTTP, `/api/mcp`). Yayın yüzeyi açık kayıt bean'i (`ZeusMcpTools`), erişim paylaşılan sır + fail-closed, her çağrı audit'li. Bkz. `gelistirmeler/23-zeus-ai-mcp.md` |
+| ai-agent | `zeus-ai-agent` | ✅ gerçek | Çok adımlı araştırma ajanı harness'ı: koşu kapsamlı çalışma alanı (5 dosya tool'u) + `ZeusAgent` sözleşmesi + adım/token/süre bütçesi. Spring AI'ın tool döngüsünü aynen kullanır; yeni 3. parti jar GETİRMEZ (module/restart etkilenmez). Bkz. `gelistirmeler/24-zeus-ai-agent.md` |
 | redis | `zeus-redis` | 🚧 iskelet | RedisTemplate/cache (planlanan) |
 | batch | `zeus-batch` | 🚧 iskelet | Spring Batch job/step (planlanan) |
 | soap | `zeus-soap` | ✅ gerçek | `ZeusSoapEndpointRegistrar` — `@WebService` bean'lerini `/services/*` altında yayınlar (Apache CXF / JAX-WS). SOAP tipi uygulamalar için. Bkz. `gelistirmeler/14-uygulama-tipi-parentlar.md` |
@@ -85,6 +86,10 @@ yok çelişkisini yakalayan denetleyici) sağlar. Çalışma zamanı **fail-open
 sınıfı vetolamaz), build **fail-closed**dır (`scripts/test-autoconfig-sahipligi.sh`,
 module'deki her autoconfig sınıfının bir yeteneğe ya da her-zaman-serbest listesine düştüğünü
 zorunlu kılar). Tam tasarım, API, kaçış kapıları ve yetenek tablosu: `gelistirmeler/21-yetenek-opt-in.md`.
+
+**İstisna:** 3. parti autoconfig paketi getirmeyen modüller (`zeus-ai-agent`) `ZeusCapabilities`'e
+kaydedilmez — gatelenecek bir 3. parti autoconfig yoktur. Opt-in yalnız modülün kendi
+`@ConditionalOnProperty`'siyle olur; bedeli, property unutulduğunda verifier'ın uyarmamasıdır.
 
 **Yeni bir modül paylaşımlı `com.zeus` module'üne yeni bir 3. parti autoconfig paketi
 getiriyorsa** (aşağıdaki "Yeni Modül Ekleme Kuralı"nın bir parçası olarak), o paket
