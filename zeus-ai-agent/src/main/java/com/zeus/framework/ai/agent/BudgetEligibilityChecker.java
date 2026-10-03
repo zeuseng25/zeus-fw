@@ -24,7 +24,8 @@ public class BudgetEligibilityChecker implements ToolExecutionEligibilityChecker
     private final long startedAt;
 
     private int steps;
-    private long tokens;
+    private long promptTokens;
+    private long completionTokens;
     private StopReason stopReason = StopReason.MODEL_FINISHED;
 
     public BudgetEligibilityChecker(AgentBudget budget, Supplier<Long> clockMillis) {
@@ -35,7 +36,12 @@ public class BudgetEligibilityChecker implements ToolExecutionEligibilityChecker
 
     @Override
     public Boolean apply(ChatResponse response) {
-        tokens += tokenSayisi(response);
+        Usage u = usage(response);
+        if (u != null) {
+            promptTokens += u.getPromptTokens();
+            completionTokens += u.getCompletionTokens();
+        }
+        long tokens = promptTokens + completionTokens;
 
         // Model araç çağırmadıysa işi bitmiştir; bütçeye bakmaya gerek yok.
         if (!hasToolCalls(response)) {
@@ -62,20 +68,28 @@ public class BudgetEligibilityChecker implements ToolExecutionEligibilityChecker
         return steps;
     }
 
+    /** Toplam token (prompt + completion) — bütçe denetiminin karşılaştırdığı değer. */
     public long tokens() {
-        return tokens;
+        return promptTokens + completionTokens;
+    }
+
+    public long promptTokens() {
+        return promptTokens;
+    }
+
+    public long completionTokens() {
+        return completionTokens;
     }
 
     public StopReason stopReason() {
         return stopReason;
     }
 
-    private static long tokenSayisi(ChatResponse response) {
+    private static Usage usage(ChatResponse response) {
         if (response == null || response.getMetadata() == null) {
-            return 0L;
+            return null;
         }
-        Usage u = response.getMetadata().getUsage();
-        return u == null ? 0L : u.getTotalTokens();
+        return response.getMetadata().getUsage();
     }
 
     private static boolean hasToolCalls(ChatResponse response) {

@@ -31,11 +31,20 @@ public class DefaultZeusAgent implements ZeusAgent {
 
     private final ChatModel chatModel;
     private final ObservationRegistry observationRegistry;
+    private final AgentBudget defaultBudget;
 
-    public DefaultZeusAgent(ChatModel chatModel, ObservationRegistry observationRegistry) {
+    /**
+     * @param defaultBudget {@code spec.budget()} {@code null} geldiğinde kullanılacak bütçe
+     *                      (bkz. {@code ZeusAgentProperties.toBudget()}). Burada sabit bir
+     *                      {@code AgentBudget.defaults()} YOKTUR — çağıranın property'lerle
+     *                      ayarladığı bütçe gerçekten uygulanabilsin diye bu değer zorunludur.
+     */
+    public DefaultZeusAgent(ChatModel chatModel, ObservationRegistry observationRegistry,
+                             AgentBudget defaultBudget) {
         this.chatModel = chatModel;
         this.observationRegistry = observationRegistry == null
                 ? ObservationRegistry.NOOP : observationRegistry;
+        this.defaultBudget = defaultBudget == null ? AgentBudget.defaults() : defaultBudget;
     }
 
     @Override
@@ -59,8 +68,9 @@ public class DefaultZeusAgent implements ZeusAgent {
 
         InMemoryWorkspace workspace = new InMemoryWorkspace();
         WorkspaceTools workspaceTools = new WorkspaceTools(workspace);
+        AgentBudget etkinButce = spec.budget() != null ? spec.budget() : defaultBudget;
         BudgetEligibilityChecker butce =
-                new BudgetEligibilityChecker(spec.budget(), System::currentTimeMillis);
+                new BudgetEligibilityChecker(etkinButce, System::currentTimeMillis);
 
         List<Object> tools = new ArrayList<>(spec.tools());
         tools.add(workspaceTools);
@@ -83,15 +93,33 @@ public class DefaultZeusAgent implements ZeusAgent {
         } catch (RuntimeException e) {
             // Koşu yarıda kaldıysa bile çalışma alanı DÖNER: o ana kadar yazılmış rapor kaybolmaz.
             log.warn("Ajan koşusu hata ile bitti: {}", e.getMessage(), e);
-            sebep = StopReason.ERROR;
+            // Bütçe zaten durdurduysa o sebep KORUNUR: budget.apply() döngüyü false ile
+            // "temiz" durdursa da, runAs'ta boş/eksik son yanıtın entity(type) dönüşümü
+            // istisna fırlatabilir (ör. boş içerik). Bu durumda "model bitirdi" ile "bütçe
+            // doldu" asla ayırt edilemez hâle gelmemeli — ERROR yalnızca bütçe SEBEP
+            // DEĞİLSE yazılır.
+            sebep = butceDurdurduMu(butce.stopReason()) ? butce.stopReason() : StopReason.ERROR;
         }
         long sure = System.currentTimeMillis() - basla;
 
-        AgentRunStats stats = new AgentRunStats(butce.steps(), butce.tokens(), sure, sebep);
+        AgentRunStats stats = new AgentRunStats(
+                butce.steps(), butce.promptTokens(), butce.completionTokens(), sure, sebep);
         log.info("Ajan koşusu bitti — adım={}, token={}, süre={} ms, sebep={}, dosya={}",
                 stats.steps(), stats.tokens(), stats.durationMs(), stats.stopReason(),
                 workspace.snapshot().size());
 
         return new AgentResult<>(sonuc, workspace.snapshot(), stats);
+    }
+
+    /**
+     * {@code stopReason} bütçenin kendisi tarafından mı belirlendi? {@code runAs}'ta
+     * {@code entity(type)} dönüşümü bütçe tam o adımda durdurduğu için boş/eksik içerik
+     * üstünde istisna fırlatabilir — bu durumda yakalanan istisna bütçe sebebini
+     * EZMEMELİDİR, aksi hâlde "bütçe doldu" hiç görünmez, hep "hata" görünür.
+     */
+    private static boolean butceDurdurduMu(StopReason sebep) {
+        return sebep == StopReason.STEP_BUDGET
+                || sebep == StopReason.TOKEN_BUDGET
+                || sebep == StopReason.TIME_BUDGET;
     }
 }

@@ -32,17 +32,21 @@ public class ZeusAgentAutoConfiguration {
 
     private static final Logger log = LoggerFactory.getLogger(ZeusAgentAutoConfiguration.class);
 
-    public ZeusAgentAutoConfiguration(ZeusAgentProperties properties) {
-        log.info("Zeus AI Agent modülü yüklendi — varsayılan bütçe: {} adım / {} token / {}.",
-                properties.getMaxSteps(), properties.getMaxTokens(), properties.getMaxDuration());
-    }
+    // DİKKAT: bilinçli olarak kurucu YOK. Autoconfig sınıfının kendisi ChatModel bean'i
+    // olmasa da örneklenir — log burada basılırsa "modül yüklendi" yalanı söylenirdi
+    // (ZeusAgent bean'i hiç kurulmayabilir). Log, bean gerçekten kurulduğunda @Bean
+    // metodunda basılır (Minor #8).
 
     @Bean
     @ConditionalOnBean(ChatModel.class)
     @ConditionalOnMissingBean
-    public ZeusAgent zeusAgent(ChatModel chatModel,
+    public ZeusAgent zeusAgent(ChatModel chatModel, ZeusAgentProperties properties,
                                ObjectProvider<ObservationRegistry> observationRegistry) {
+        AgentBudget varsayilanButce = properties.toBudget();
+        log.info("Zeus AI Agent modülü yüklendi — varsayılan bütçe: {} adım / {} token / {}.",
+                varsayilanButce.maxSteps(), varsayilanButce.maxTokens(), varsayilanButce.maxDuration());
         return new DefaultZeusAgent(chatModel,
-                observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP));
+                observationRegistry.getIfAvailable(() -> ObservationRegistry.NOOP),
+                varsayilanButce);
     }
 }

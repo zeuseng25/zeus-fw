@@ -67,7 +67,9 @@ public class WorkspaceTools {
         if (r.error() != null) {
             return "HATA: " + r.error();
         }
-        okunanlar.add(filePath);
+        // NORMALİZE EDİLMİŞ yol kaydedilir (r.path()), çağıranın verdiği ham yol DEĞİL —
+        // aksi hâlde "/a//b.md" ile okuyup "/a/b.md" ile düzenlemek reddedilirdi (bkz. I6).
+        okunanlar.add(r.path());
 
         String baslik = "@@ satır " + r.startLine() + "-" + r.endLine() + " / " + r.totalLines()
                 + (r.nextOffset() != null ? " | sonraki offset " + r.nextOffset() : "") + " @@";
@@ -92,7 +94,10 @@ public class WorkspaceTools {
         if (r.error() != null) {
             return "HATA: " + r.error();
         }
-        okunanlar.add(filePath);   // yazan taraf içeriği bilir
+        // r.path() — NORMALİZE EDİLMİŞ yol — kaydedilir, ham filePath DEĞİL (bkz. I6):
+        // "az önce yazdığın dosyayı doğrudan editFile ile düzenleyebilirsin" vaadi, kanonik
+        // olmayan bir yolla yazıldığında da (ör. "/a//b.md") tutmalı.
+        okunanlar.add(r.path());   // yazan taraf içeriği bilir
         return r.path() + " yazıldı.";
     }
 

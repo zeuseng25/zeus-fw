@@ -63,6 +63,15 @@ alanını modele **beş** `@Tool` olarak açar: `ls`, `readFile`, `writeFile`, `
 "Okumadan düzenleme yok" kuralı `WorkspaceTools`'ta tutulur (depoda değil) — kural modelin
 davranışıyla ilgilidir.
 
+**Fix (I6):** bu kural NORMALİZE EDİLMİŞ yollarla takip edilir, çağıranın verdiği ham yolla DEĞİL.
+`InMemoryWorkspace.normalize`, `//`'yi tek `/`'ye indirir ve sondaki `/`'yi atar; `okunanlar`
+kümesi önceden ham yolu tutuyordu, bu yüzden `readFile("/a//b.md")` sonrası `editFile("/a/b.md")`
+— dosya gerçekten okunmuş olsa da — REDDEDİLİYORDU. `writeFile` de aynı hatayı taşıyordu: ham
+yolu kaydedip normalize edilmiş yolu DÖNDÜRÜYORDU. Fix: `writeFile` artık `r.path()`'i (workspace'in
+döndürdüğü normalize yol) kaydeder; `readFile` için `ReadResult`'a bir `path` alanı eklendi ve
+`WorkspaceTools` onu kullanır. `WorkspaceToolsTest`'teki `kanonikOlmayanYolla_*` testleri her iki
+akışı (oku-sonra-düzenle, yaz-sonra-düzenle) kilitler.
+
 **`execute` / shell bilinçli olarak YOK** (tasarım dokümanının "kapsam dışı" kararı,
 `docs/superpowers/specs/2026-10-03-zeus-ai-agent-harness-design.md`): bu modül bir **araştırma**
 ajanı harness'ıdır, aksiyon alan/komut çalıştıran bir ajan değil. Shell eklemek sandbox, onay akışı
@@ -108,7 +117,42 @@ Bütçe dolduğunda döngü **temiz durur** — istisna fırlatılmaz, çünkü 
 
 `stopReason` bilinçli olarak sonucun bir parçasıdır: "model bitirdi" ile "bütçe doldu" aynı yanıt
 gövdesine karışmaz — kurumsal maliyet görünürlüğünün tek yolu budur (`zeus-ai-mcp`'deki audit
-desenine paralel).
+desenine paralel). **`runAs`'ta da aynı ayrım geçerlidir** (fix): bütçe tam kesme anında durunca
+`entity(type)` boş/eksik içerik üstünde istisna fırlatabilir; `DefaultZeusAgent`'ın yakala-bloğu
+bu durumda `stopReason`'ı `ERROR` ile EZMEZ — `StopReason` zaten `STEP_BUDGET`/`TOKEN_BUDGET`/
+`TIME_BUDGET`'ten biriyse o korunur, `ERROR` yalnızca bütçe SEBEP DEĞİLKEN yazılır
+(`DefaultZeusAgentTest.runAsButceDolunca_ERRORDegilButceSebebiKorunur`).
+
+`AgentRunStats`, token sayısını `promptTokens`/`completionTokens` olarak AYRI tutar
+(`Usage.getPromptTokens()`/`getCompletionTokens()`) — kurumsal maliyet raporlaması ikisini farklı
+fiyatlandırır. `tokens()` ikisinin toplamı olarak kısa yoldan kalır; bütçe denetimi zaten bu
+toplama karşı çalışır. `toolCalls` (tasarım dokümanındaki sözleşmede var) **A1'de BİLİNÇLİ olarak
+YOK** — tool-çağrısı kaydını doğru tutmak A2'nin offload mekanizmasıyla aynı dekoratörü
+gerektiriyor, iki kez yazılmasın diye A2'ye ertelendi (bkz. tasarım dokümanı, "stats sözleşmesi"
+notu).
+
+### Bütçe property'leri artık GERÇEKTEN uygulanıyor (C1 fix)
+
+**Önceden ÖLÇÜLEN kusur:** `AgentSpec.of(...)` her zaman `AgentBudget.defaults()` (15 adım / 3 dk
+/ 200k token) ile DOLDURULUYORDU ve `ZeusAgentAutoConfiguration`, `DefaultZeusAgent`'a HİÇBİR
+bütçe geçirmiyordu — sonuç: `zeus.ai.agent.max-steps`/`max-tokens`/`max-duration` property'leri
+**ÖLÜ KODDU**, `ZeusAgentProperties.toBudget()`'ı çağıran tek yer bir testti.
+
+**Fix:**
+- `AgentSpec`'in compact constructor'ı artık `null` bütçeyi `AgentBudget.defaults()`'a
+  DÜŞÜRMEZ — `null`, "ajanın yapılandırılmış varsayılanını kullan" anlamına gelir.
+  `AgentSpec.of(...)` bu yüzden `budget = null` döner.
+- `DefaultZeusAgent`, kurucusunda bir `AgentBudget defaultBudget` ALIR (tek kurucu); her koşuda
+  etkin bütçeyi `spec.budget() != null ? spec.budget() : defaultBudget` ile çözer.
+- `ZeusAgentAutoConfiguration`, `ZeusAgent` bean'ini kurarken `properties.toBudget()`'ı bu
+  parametreye geçirir. **Minor fix:** "modül yüklendi" logu artık autoconfig'in kurucusunda
+  DEĞİL, `@Bean` metodunda basılır — eskiden `ChatModel` bean'i hiç yokken de basılıyordu (yani
+  `ZeusAgent` hiç kurulmasa da "yüklendi" diyordu) ve C1 öncesi hep sabit 15/200k/3dk yazıyordu;
+  artık yalnız bean GERÇEKTEN kurulunca ve GERÇEKTEN uygulanacak bütçeyle basılır.
+- Testler bunu uçtan uca kanıtlar: `DefaultZeusAgentTest.yapilandirilmisVarsayilanButceGercektenUygulanir`
+  küçük bir yapılandırılmış varsayılanla kurulan bir ajanın 15 adımda değil o küçük sınırda
+  durduğunu gösterir; `specTeAcikcaVerilenButceAjaninVarsayilaniniEZER` ise `spec.budget()`
+  AÇIKÇA verildiğinde onun önceliğini doğrular.
 
 ## Koşu kapsamlı kurulumun gerekçesi
 
@@ -117,7 +161,15 @@ yeni `WorkspaceTools`, yeni `BudgetEligibilityChecker`, yeni `ChatClient`. deepa
 state kanallarıyla (ve private API'leriyle) çözdüğü şey burada **nesne ömrüyle** çözülür. Bunun
 somut faydası: bütçe sayacının koşular arasında sızması YAPISAL olarak imkânsızdır — paylaşılan bir
 `BudgetEligibilityChecker` örneği olsaydı bir önceki koşunun adım/token sayacı bir sonrakine
-devrederdi.
+devrederdi. `defaultBudget` (bkz. yukarıdaki C1 fix) bu kuralı BOZMAZ: o alan koşu BAŞLANGICINDA
+okunan sabit bir yapılandırmadır, koşu sırasında yazılmaz; durum tutan tek şey hâlâ koşuya özel
+`BudgetEligibilityChecker`'dır.
+
+**Test düzeltmesi (I4):** bu iddianın testi (`DefaultZeusAgentTest.kosularArasindaCalismaAlaniPAYLASILMAZ`)
+önceden ikinci koşu için YENİ bir `DefaultZeusAgent` örneği kuruyordu — bu, çalışma alanını/bütçe
+sayacını bean üstünde yanlışlıkla TUTAN bir implementasyonu da yeşil geçirirdi. Artık test AYNI
+ajan örneğini iki kez çalıştırır ve ikinci koşunun hem çalışma alanının boş hem adım sayacının
+sıfırdan başladığını doğrular.
 
 ## Platform gerçeği — `ToolCallingChatOptions` olmadan döngü hiç çalışmaz
 
@@ -167,15 +219,15 @@ olarak alınmadı.
 
 ## Testler
 
-`zeus-ai-agent/src/test` — 43 test:
+`zeus-ai-agent/src/test` — 50 test:
 
 | Sınıf | Neyi kilitliyor |
 |---|---|
 | `InMemoryWorkspaceTest` | Yol kuralları, hata kodları, `edit` eşleşme/çoklu eşleşme, sayfalama |
-| `WorkspaceToolsTest` | Sayfalama başlığı biçimi, okumadan düzenlemenin reddi, grep'in düz metin olduğu |
+| `WorkspaceToolsTest` | Sayfalama başlığı biçimi, okumadan düzenlemenin reddi, grep'in düz metin olduğu, **kanonik olmayan yolla oku/yaz-sonra-düzenle (I6)** |
 | `ToolDescriptionSnapshotTest` | Beş tool'un açıklamalarının golden snapshot'ı |
 | `BudgetEligibilityCheckerTest` | Üç bütçenin her biri ayrı ayrı durdurur; `stopReason` doğru |
-| `DefaultZeusAgentTest` | `StubChatModel` ile uçtan uca koşu — araç çağırma, bütçe dolması, hata ile bitiş, çalışma alanının korunması |
+| `DefaultZeusAgentTest` | `StubChatModel` ile uçtan uca koşu — araç çağırma, bütçe dolması, hata ile bitiş, çalışma alanının korunması; **yapılandırılmış varsayılan bütçenin gerçekten uygulandığı ve `spec.budget()`'ın onu ezebildiği (C1)**; **`runAs` mutlu yol + bütçe dolunca `ERROR` değil bütçe sebebinin korunduğu (I1)**; **aynı ajan örneğiyle iki koşu — çalışma alanı VE adım sayacı sızmıyor (I4)**; **kısmi başarısız koşuda çalışma alanının korunduğu, istisnanın sızmadığı (I5)** |
 | `ZeusAgentAutoConfigurationTest` | **Opt-in simetrisi**: `=false` açılışı çökertmez, property yoksa bean yok, `true` olunca `ZeusAgent` kurulur, `ChatModel` yoksa sessizce kurulmaz, bütçe varsayılanları property ile değiştirilebilir |
 
 ## Sırada ne var

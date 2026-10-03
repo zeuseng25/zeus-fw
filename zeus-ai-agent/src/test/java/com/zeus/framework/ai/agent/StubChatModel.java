@@ -24,6 +24,10 @@ import java.util.List;
  */
 class StubChatModel implements ChatModel {
 
+    /** {@code yanitlar} kuyruğunda "bu sırada istisna fırlat" anlamına gelen sabit işaretçi. */
+    private static final ChatResponse HATA_ISARETI =
+            new ChatResponse(List.of(new Generation(new AssistantMessage("__hata_isareti__"))));
+
     private final Deque<ChatResponse> yanitlar = new ArrayDeque<>();
     private final List<Prompt> cagrilar = new ArrayList<>();
 
@@ -43,6 +47,15 @@ class StubChatModel implements ChatModel {
     StubChatModel metin(String icerik, int promptTok, int completionTok) {
         yanitlar.add(new ChatResponse(List.of(new Generation(new AssistantMessage(icerik))),
                 ChatResponseMetadata.builder().usage(new DefaultUsage(promptTok, completionTok)).build()));
+        return this;
+    }
+
+    /**
+     * Sırada bu noktaya gelindiğinde {@code call()}'un istisna fırlatmasını sağlar — koşunun
+     * yarıda hata ile kesildiği senaryoları (bkz. I5) sınamak için.
+     */
+    StubChatModel hataFirlat() {
+        yanitlar.add(HATA_ISARETI);
         return this;
     }
 
@@ -69,6 +82,10 @@ class StubChatModel implements ChatModel {
             // Senaryo bittiyse döngüyü kapat; testte "beklenenden fazla çağrı" sessiz kalmasın.
             return new ChatResponse(List.of(new Generation(new AssistantMessage("senaryo bitti"))));
         }
-        return yanitlar.poll();
+        ChatResponse yanit = yanitlar.poll();
+        if (yanit == HATA_ISARETI) {
+            throw new RuntimeException("StubChatModel: senaryolanmış hata");
+        }
+        return yanit;
     }
 }

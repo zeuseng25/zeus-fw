@@ -44,16 +44,21 @@ public final class WorkspaceResults {
     }
 
     /**
+     * @param path       NORMALİZE EDİLMİŞ dosya yolu (çağıranın verdiği ham yol değil — ör.
+     *                   {@code /a//b.md} için {@code /a/b.md} döner). Çağıran taraf (ör.
+     *                   {@code WorkspaceTools}) "okundu" kaydını bu yolla tutmalıdır; aksi
+     *                   hâlde kanonik olmayan bir yolla okuyup kanonik yolla düzenlemek
+     *                   "okunmadan düzenleme" hatasına sebep olur.
      * @param content    istenen pencerenin içeriği (başlıksız, ham)
      * @param startLine  1 tabanlı ilk satır
      * @param endLine    1 tabanlı son satır
      * @param totalLines dosyanın toplam satır sayısı
      * @param nextOffset pencere dosyanın sonuna ulaşmadıysa sıradaki offset, ulaştıysa {@code null}
      */
-    public record ReadResult(String content, int startLine, int endLine, int totalLines,
-                             Integer nextOffset, String error) {
+    public record ReadResult(String path, String content, int startLine, int endLine,
+                             int totalLines, Integer nextOffset, String error) {
         public static ReadResult error(String error) {
-            return new ReadResult(null, 0, 0, 0, null, error);
+            return new ReadResult(null, null, 0, 0, 0, null, error);
         }
     }
 

@@ -74,4 +74,31 @@ class WorkspaceToolsTest {
     void lsBosCalismaAlaniniAcikSoyler() {
         assertThat(tools.ls("/")).contains("boş");
     }
+
+    /**
+     * I6: {@code InMemoryWorkspace.normalize}, {@code //}'yi tek {@code /} ile birleştirir;
+     * "okundu" kaydı da aynı normalize edilmiş yolla tutulmalı — aksi hâlde kanonik olmayan
+     * bir yolla okuyup (ya da yazıp) kanonik yolla düzenlemek "okunmadan düzenleme" hatasıyla
+     * REDDEDİLİRDİ, oysa dosya gerçekten okunmuş/yazılmıştı.
+     */
+    @Test
+    void kanonikOlmayanYolla_okuThenEdit_calisir() {
+        ws.write("/a/b.md", "merhaba");
+
+        tools.readFile("/a//b.md", 0, 10);                 // ham, kanonik OLMAYAN yol
+        String out = tools.editFile("/a/b.md", "merhaba", "selam");   // kanonik yol
+
+        assertThat(out).contains("güncellendi");
+        assertThat(ws.read("/a/b.md", 0, 10).content()).isEqualTo("selam");
+    }
+
+    @Test
+    void kanonikOlmayanYolla_yazThenEdit_calisir() {
+        tools.writeFile("/a//b.md", "merhaba");             // ham, kanonik OLMAYAN yol
+
+        String out = tools.editFile("/a/b.md", "merhaba", "selam");   // kanonik yol
+
+        assertThat(out).contains("güncellendi");
+        assertThat(ws.read("/a/b.md", 0, 10).content()).isEqualTo("selam");
+    }
 }

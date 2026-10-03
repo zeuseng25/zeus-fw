@@ -83,7 +83,7 @@ public class InMemoryWorkspace implements ZeusAgentWorkspace {
         int to = Math.min(from + Math.max(limit, 1), total);
         String body = String.join("\n", List.of(lines).subList(from, to));
         Integer next = (to < total) ? to : null;
-        return new ReadResult(body, from + 1, to, total, next, null);
+        return new ReadResult(p, body, from + 1, to, total, next, null);
     }
 
     @Override

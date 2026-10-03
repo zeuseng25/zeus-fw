@@ -294,7 +294,7 @@ Guard'lar (`scripts/run-guards.sh`):
 - `test-mcp-opt-in-butunlugu.sh` (`app-std`) — yukarıdaki **bilinen boşluğun** tek savunması.
 - `test-mcp-uctan-uca.sh` (`app-std+wf`) — gerçek protokol: fail-closed, `/sse` 404,
   `tools/list` + `@ToolParam`, `tools/call`, correlation-id ve **thread** iddiaları.
-- `test-war-packaging.sh` — WAR'da 7 zeus jar'ı; MCP SDK ve `spring-ai-*` WAR'a girmemeli.
+- `test-war-packaging.sh` — WAR'da 8 zeus jar'ı; MCP SDK ve `spring-ai-*` WAR'a girmemeli.
 
 ## Güvenlik notları
 

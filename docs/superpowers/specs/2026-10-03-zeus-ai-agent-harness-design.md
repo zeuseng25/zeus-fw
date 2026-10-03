@@ -121,6 +121,14 @@ public enum StopReason { MODEL_FINISHED, STEP_BUDGET, TOKEN_BUDGET, TIME_BUDGET,
   görünür kılmanın tek yolu bu; "model bitirdi" ile "bütçe doldu" aynı yanıt gövdesine
   karışmamalı.
 
+**Stats sözleşmesi — A1'de teslim edilen / ertelenen.** `promptTokens`/`completionTokens` A1'de
+`Usage.getPromptTokens()`/`getCompletionTokens()`'tan ayrı tutulur (kurumsal maliyet raporlaması
+ikisini farklı fiyatlandırır); `tokens()` ikisinin toplamı olarak kısa yoldan kalır. **`toolCalls`
+A1'de YOK — A2'ye ERTELENDİ.** Gerekçe: bir tool-çağrısı listesini doğru doldurmak, her tool
+yürütmesini kaydeden bir dekoratör gerektirir — bu TAM OLARAK A2'nin offload mekanizmasının da
+ihtiyaç duyduğu şey (`doGetNextInstructionsForToolCall`/tool sonucu sarmalayıcı). İkisini ayrı
+artımlarda iki kez yazmamak için `toolCalls` A2 ile BİRLİKTE gelir.
+
 ### Çalışma alanı
 
 ```java
@@ -190,6 +198,13 @@ en az makine gerektireni budur.
 Dışlananlar (deepagents'ın listesinden): dosya tool'larının kendi sonuçları offload edilmez —
 `read_file` zaten sayfalıyor, `ls`/`grep` kendini kırpıyor; aksi hâlde "oku → offload → tekrar
 oku" döngüsü oluşur.
+
+> **NOT (A1 fix dalgasında ölçüldü, A2'ye devredilen açık):** "`ls`/`grep` kendini kırpıyor"
+> iddiası `ls` için doğru ama **`grep` için BUGÜN DOĞRU DEĞİL** — `WorkspaceResults.GrepResult`'ın
+> `truncated` alanı `InMemoryWorkspace.grep`'te HER ZAMAN `false`'dur, sonuç sayısı hiç
+> sınırlanmaz. A2, grep'i offload'tan muaf tutmaya başlamadan önce ya bir sonuç sınırı eklemeli
+> ya da bu muafiyeti kaldırıp grep sonuçlarını da offload'a tabi tutmalı; aksi hâlde geniş bir
+> grep sonucu bağlamı tam da offload'un önlemeye çalıştığı şekilde şişirebilir.
 
 **3. Compaction → `doBeforeCall`.** Bağlam bütçesini aşınca eski mesajlar özetlenir. **Ham geçmiş
 silinmez**: çalışma alanına `/conversation/history.md` olarak yazılır ve özet mesajı o yolu
