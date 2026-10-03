@@ -31,6 +31,12 @@ Format: **Önem / Bulgu / Dosya / Etki (×1000) / Önerilen düzeltme / Sahiplik
 
 ### G-1 [KRİTİK] BOM'da sıfır CVE override — EOL Spring Boot 3.1.3 yamasız
 
+> **DURUM: ÇÖZÜLDÜ (2026-08-28).** Aşağıdaki bulgu Boot 3.1.3 taban çizgisinde yazılmıştır;
+> tarihsel kayıt olarak korunuyor. Bugünkü durum: platform **Boot 4.0.7 / Java 25** hattında
+> (`13-java25-boot4-wildfly41-yukseltme.md`) ve BOM artık gerekçeli CVE override'ları içeriyor
+> (ör. `commons-beanutils 1.11.0` — CVE-2025-48734; `bouncycastle` jdk15on→jdk18on 1.85).
+> Kapsam kararları ve yasaklı EOL listesi: `16-eol-bagimliliklar-ve-migrasyon.md`.
+
 - **Bulgu:** `zeus-dependencies/pom.xml` yalnızca `spring-boot-dependencies:3.1.3` import'u +
   springdoc `2.2.0` + ojdbc11 `23.4.0.24.05` içerir. Doküman 09'un tanımladığı **CVE override
   bloğu fiilen boştur** — mekanizma var, hiç kullanılmamış. Spring Boot 3.1.x satırı EOL'dir ve

@@ -32,6 +32,8 @@
 # <app-dizin-adı>.war olarak deploy eder → context path /<app-dizin-adı>.
 #
 set -euo pipefail
+# Sessiz ölüm YASAK: set -e ile düşen her komut nerede düştüğünü söylesin.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 
 ZEUS_FW_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -56,6 +58,9 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 SERVER_LOG="${WILDFLY_HOME}/standalone/log/server.log"
 
 # --- Ön kontrol: app dizinleri ve deploy.sh'ları var mı ---
+# (Yutma denetimi 1/7: 2>/dev/null OPSİYONEL — cd'nin ham stderr'i bilinçli susturulur,
+#  YERİNE hemen aşağıda daha açık bir "HATA: dizin yok" mesajı basılır. Hata GİZLENMİYOR,
+#  daha iyi bir mesajla DEĞİŞTİRİLİYOR; `||` bloğu script'i burada durdurur.)
 APPS=()
 for app in "$@"; do
     app="$(cd "${app}" 2>/dev/null && pwd)" || { echo "HATA: dizin yok: ${app}" >&2; exit 2; }
@@ -66,6 +71,9 @@ done
 echo ">> Staging doğrulama: ${WILDFLY_HOME} (http:${HTTP_PORT} mgmt:${MGMT_PORT}, slot: ${SLOT})"
 echo ">> Uygulamalar: $(for a in "${APPS[@]}"; do printf '%s ' "$(basename "$a")"; done)"
 
+# (Yutma denetimi 2/7: || true OPSİYONEL — pgrep hiçbir süreç bulamazsa 1 döner; bu
+#  "WildFly ayakta değil" NORMAL/beklenen bir durumdur, hata değildir. Çağıranlar boş
+#  sonucu ("$(wf_pid)" == "") zaten "kapalı" olarak yorumluyor.)
 wf_pid() { pgrep -f "jboss.home.dir=${WILDFLY_HOME}" | head -n1 || true; }
 
 if [[ "${SLOT}" == "main" ]]; then
@@ -86,8 +94,15 @@ if [[ "${SLOT}" == "main" ]]; then
     PID="$(wf_pid)"
     if [[ -n "${PID}" ]]; then
         echo ">> WildFly kapatılıyor (PID ${PID})..."
+        # (Yutma denetimi 3/7: >/dev/null 2>&1 OPSİYONEL — jboss-cli'nin gürültülü çıktısı
+        #  susturulur; başarısızlığı YOK SAYILMIYOR, `if !` ile YAKALANIP kill fallback'ine
+        #  düşülüyor (aşağıdaki döngü sürecin gerçekten öldüğünü ayrıca doğruluyor).)
         if ! "${WILDFLY_HOME}/bin/jboss-cli.sh" --connect --controller="localhost:${MGMT_PORT}" \
                 command=:shutdown >/dev/null 2>&1; then
+            # (Yutma denetimi 4/7: kill'in 2>/dev/null || true OPSİYONEL — PID, jboss-cli'nin
+            #  nazik kapatması ile bu satır arasında ZATEN ölmüş olabilir (yarış durumu);
+            #  "süreç yok" hatası burada anlamsızdır, aşağıdaki bekleme döngüsü gerçek
+            #  sonucu (süreç öldü mü) ayrıca doğruluyor.)
             kill "${PID}" 2>/dev/null || true
         fi
         for _ in $(seq 1 30); do
@@ -129,6 +144,9 @@ if [[ "${NEED_START}" == "1" ]]; then
     [[ "${PORT_OFFSET}" != "0" ]] && JBOSS_ARGS+=("-Djboss.socket.binding.port-offset=${PORT_OFFSET}")
     BOOT_LOG="${WILDFLY_HOME}/standalone/log/verify-staging-console.out"
     echo ">> WildFly başlatılıyor..."
+    # (Yutma denetimi 5/7: > BOOT_LOG 2>&1 YUTMA DEĞİL — çıktı ATILMIYOR, dosyaya
+    #  YÖNLENDİRİLİYOR; aşağıdaki "UP" bekleme döngüsü zaman aşımına uğrarsa BOOT_LOG'un
+    #  yolu HATA mesajında ayrıca basılır (satır ~156), yani teşhis bilgisi kaybolmaz.)
     nohup "${WILDFLY_HOME}/bin/standalone.sh" ${JBOSS_ARGS[@]+"${JBOSS_ARGS[@]}"} > "${BOOT_LOG}" 2>&1 &
     UP=0
     for _ in $(seq 1 60); do
@@ -160,8 +178,24 @@ for app in "${APPS[@]}"; do
     fi
     # Slot-hedef doğrulaması: app'in WAR'ı doğrulanan slot'u mu gösteriyor?
     # (Yeni parent'la build edilmemiş bir app, ESKİ slot'la yeşil görünüp gate'i yanıltmasın.)
+    # (Yutma denetimi 6/7: ls 2>/dev/null || true OPSİYONEL — target/ altında henüz WAR
+    #  olmayabilir (örn. deploy.sh WAR'ı başka bir dizine kopyalayıp temizlemiştir); boş
+    #  WAR_FILE hemen aşağıdaki `-n` kontrolüyle ele alınır, slot doğrulaması o durumda
+    #  atlanır — sessizce yanlış sonuca varılmaz, yalnız o adım koşmaz.)
     WAR_FILE="$(ls -t "${app}"/target/*.war 2>/dev/null | head -n1 || true)"
     if [[ -n "${WAR_FILE}" ]]; then
+        # (Yutma denetimi 7/7: DÜZELTİLDİ — eskiden unzip'in "hiç düşmeme" varsayımıyla
+        #  2>/dev/null | grep || true tek satırda hem "descriptor'da com.zeus yok" hem
+        #  "WAR bozuk/okunamıyor" durumlarını AYNI ŞEKİLDE ele alıyordu; ikincisi APP_SLOT'u
+        #  sessizce "main"e düşürüp gate'i YANLIŞ sonuçla (yanlış ❌ ya da sahte ✅) geçirebilirdi.
+        #  Önce zip'in GERÇEKTEN okunabilir olduğu doğrulanır (gerçek hata → açık ❌ + GATE_FAIL);
+        #  yalnız OKUNABİLİR bir zip'te "com.zeus" satırının bulunamaması hâlâ meşru biçimde
+        #  opsiyoneldir (descriptor'sız/başka bir dependency'li WAR).
+        if ! unzip -l "${WAR_FILE}" >/dev/null 2>/dev/null; then
+            RESULTS+=("❌ ${name}: WAR okunamadı (bozuk/erişilemez zip): ${WAR_FILE}")
+            GATE_FAIL=1
+            continue
+        fi
         APP_SLOT="$(unzip -p "${WAR_FILE}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null \
             | grep 'name="com\.zeus"' | sed -n 's/.*slot="\([^"]*\)".*/\1/p' || true)"
         [[ -z "${APP_SLOT}" ]] && APP_SLOT="main"

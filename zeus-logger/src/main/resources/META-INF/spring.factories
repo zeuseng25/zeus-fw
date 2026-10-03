@@ -1,0 +1,6 @@
+# EnvironmentPostProcessor Boot 4'te hâlâ spring.factories ile kaydedilir
+# (auto-configuration'ın aksine .imports dosyası kullanılmaz).
+# Anahtar Boot 4'te org.springframework.boot.EnvironmentPostProcessor'dır
+# (Boot 3'teki org.springframework.boot.env.EnvironmentPostProcessor DEĞİL).
+org.springframework.boot.EnvironmentPostProcessor=\
+com.zeus.framework.logger.CorrelationLoggingEnvironmentPostProcessor

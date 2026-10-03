@@ -125,6 +125,91 @@ SLOT akışında farklar:
 - Promote artifact'ı slot dizininden üretilir (`com-zeus-module-<slot>-<stamp>.tar.gz`);
   prod talimatı restart'sızdır (tar aç → app'ler parent bump + redeploy → envanterle kapanış).
 
+### 7) `generate-war-excludes.sh` — üretilen WAR dışlama listesi
+
+Descriptor gibi, WAR'ın dışlama listesi de **üretilir**. Kaynağı `zeus-wildfly-module`
+(SOAP için ek olarak `zeus-soap-wildfly-module`) runtime kapanışıdır; çıktısı
+`zeus-parent` ve `zeus-soap-parent` POM'larındaki marker bloklarıdır.
+`install-zeus-module.sh` kendi sonunda bunu çağırır — module ve liste aynı kapanıştan
+üretildiği için ayrışamazlar. CI için: `--check`.
+Gerekçe: `19-war-paketleme-module-farkindaligi.md`.
+
+### 8) `test-descriptor-sablonlari.sh` — şablonların KENDİSİNİ ölçen guard
+
+Şablonlar WAR'ın `WEB-INF`'ine **birebir** kopyalanır; yani bu dört dosya, uygulamanın
+WildFly'daki sınıf yükleme davranışının TEK KAYNAĞIDIR. Buna rağmen 2026-09-11'e kadar
+şablon içeriğini ölçen **hiçbir** guard yoktu: `verify-module-coverage.sh` yalnız BUILD
+EDİLMİŞ bir WAR'da `name="com.zeus"` geçtiğine bakıyordu. Ölçüldü — `descriptor-standard`'dan
+`annotations="true"` silindiğinde tüm süit YEŞİL kalıyor, ama `@HandlesTypes(WebApplication
+Initializer)` taraması çözülemiyor, `DispatcherServlet` hiç kurulmuyor ve her standart tip
+uygulama runtime'da **404** dönüyordu (deploy BAŞARILI görünerek).
+
+Guard her şablon için şunu doğrular: XML parse ediliyor mu · beklenen `<module>` kümesi
+birebir mi (`standard`: `com.zeus` · `soap`: `com.zeus` + `com.zeus.soap` · `bff` ve
+`standalone`: `<dependencies>` bloğu **HİÇ OLMAMALI**) · yük taşıyan attribute'lar yerinde mi
+(`annotations="true"`, `services="import"`, `meta-inf="import"` — her birinin ne kırdığı
+script'in içinde yazılıdır) · slot yer tutucusu doğru property'yi mi gösteriyor ·
+`exclude-subsystems` doğru mu (her tipte `logging`, YALNIZ soap tipinde `webservices`).
+Şablon **dizinleri diskten türetilir**: yeni bir tip eklenip guard'a yazılmazsa KIRMIZI olur,
+sessizce kapsam dışı kalamaz. `run-guards.sh`'a `fw` etiketiyle kayıtlı.
+
+## ~~Uygulamaya özel ek module bağımlılığı~~ (`zeus.descriptor.extra.modules`) — **KALDIRILDI**
+
+> **Bu mekanizma 2026-09-11'de framework'ten TAMAMEN SİLİNDİ** (commit `1b08cb8`).
+> `zeus.descriptor.extra.modules` property'si `zeus-parent`'ta yoktur, descriptor
+> şablonlarındaki yer tutucu kaldırılmıştır. **Bir uygulamanın pom'unda bu property hâlâ
+> yazılıysa hiçbir şey yapmaz — sessizce etkisizdir.** Bölüm, hem tarihsel kayıt hem de
+> içindeki teşhis bilgisi hâlâ geçerli olduğu için silinmedi.
+
+**Neden kaldırıldı.** Descriptor içeriği **TİP kararıdır, uygulama kararı değil.** Uygulamanın
+kendi pom'undan paylaşımlı bir descriptor'a module enjekte etmesi bu ilkeyi deliyordu: iki
+uygulama aynı tipte olup farklı classloader görünürlüğüne sahip olabiliyordu ve hangi
+uygulamanın hangi module'ü gördüğü tek yerden okunamıyordu. Aynı gerekçeyle CXF için var olan
+opt-in de silindi (`19-war-paketleme-module-farkindaligi.md`, `20-zeus-sms.md`).
+
+**Çözdüğü sorun ortadan kalkmadı — hâlâ geçerli ve hâlâ çözümsüz.** İnce WAR'da Oracle sürücü
+sınıfları deployment classloader'ında **kasten yoktur** (`WEB-INF/lib`'den `packagingExcludes`
+atar, `com.zeus` module'ünden `EXCLUDE_REGEX` atar — `08-wildfly-module-dagitim.md`). Uygulama
+JNDI'dan `DataSource` aldığı sürece buna ihtiyacı da olmaz. Ama **devralınan bir util katmanı**
+sürücü sınıflarına *kod olarak* bağlıysa — `Class.forName("oracle.jdbc.OracleDriver")`,
+`Connection`'ı `OracleConnection`'a unwrap, `OracleTypes.CURSOR` — deploy şu hatayla düşer:
+
+```
+could not load JDBC driver class / ClassNotFoundException: oracle.jdbc.OracleDriver
+```
+
+**Bu hatanın teşhis imzası (DEĞİŞMEDİ, saklanmaya değer):** `jboss-cli`'de
+`test-connection-in-pool` **yeşildir**. Sunucu sürücüyü yükleyebiliyordur; yükleyemeyen
+deployment'tır. Datasource testinin geçmesi, sorunu sunucu tarafında aramaktan vazgeçmek için
+yeterli sebeptir.
+
+**Bugün doğru çözüm iki tanedir; ikisi de henüz uygulanmadı (2026-09-11, ertelendi):**
+
+1. **Kalıcı düzeltme** — util'in sürücü sınıflarına bağımlılığını kaldırmak: JNDI `DataSource`,
+   `OracleTypes.CURSOR` yerine `java.sql.Types.REF_CURSOR`, `OracleConnection` unwrap'lerini
+   standart JDBC API'sine çevirmek. Hedef budur.
+2. **Yeni uygulama TİPİ** — `com.oracle.ojdbc`'yi import eden kendi descriptor'ı olan bir tip:
+   `zeus-oracle-parent/pom.xml` (yalnız `zeus.descriptor.dir` farklı) +
+   `zeus-war-defaults/src/main/resources/descriptor-oracle/` + kök `<modules>`. Uygulama
+   tarafında değişen tek şey `<parent>` satırıdır; uygulama yine hiçbir module adı yazmaz,
+   yani ilke korunur. Bedeli: tip kalıcıdır ve teknik borcu mimariye yazar.
+
+**Neden module import jar kopyalamaktan farklı ve güvenli (her iki seçenekte de geçerli).**
+`com.oracle.ojdbc`, JCA katmanının datasource için kullandığı module'ün **ta kendisidir**;
+import edilince sınıf kimliği tek kalır, JNDI'dan gelen `Connection` ile uygulamanın gördüğü
+tip aynı classloader'dandır. Yasak olan, sürücünün **ikinci bir kopyasını** (WAR'a veya
+`com.zeus`'a jar olarak) koymaktır — o durumda tipler ayrışır ve
+`ClassCastException`/`LinkageError` çıkar. **module import ≠ jar kopyası.**
+
+**Fat WAR tiplerinde konu zaten yoktu.** `descriptor-bff` ve `descriptor-standalone`
+şablonlarında `<dependencies>` bloğu hiç yoktur; sürücü zaten `WEB-INF/lib`'dedir ve module
+import etmek tam da kaçınılan çift kopyayı yaratırdı. O tiplerde çözüm sürücüyü `provided`
+bildirmektir — `14-uygulama-tipi-parentlar.md` → "Standalone + `zeus-database`".
+
+**Tarihsel not (2026-09-08, mekanizma yaşarken doğrulanmıştı):** boş property → descriptor
+eskisiyle aynı; dolu property → `<module name="com.oracle.ojdbc"/>` descriptor'a giriyor ve
+`WEB-INF/lib`'de ojdbc jar sayısı **0** kalıyordu. O doğrulama artık silinmiş bir koda aittir.
+
 ## CVE rollout'u slot'larla (hedef akış)
 
 ```
@@ -159,6 +244,36 @@ slot gösterirse çift sınıf / LinkageError riski olduğundan** sıra önemlid
 1. Tüm app'ler üretilmiş descriptor + `slot=main` ile deploy edilir (davranış birebir aynı).
 2. Tek bakım penceresinde `<global-modules>`'tan `com.zeus` çıkarılır + reload.
 3. Slot mekanizması kullanılabilir; bundan sonrası restart'sız.
+
+## ⚠️ DOĞRULANMAMIŞ: versiyonlu slot yolu hiç çalıştırılmadı
+
+**Bugüne kadar yapılan tüm kurulum, deploy ve doğrulama `main` slot'u üzerinde koştu.**
+`--slot <ad>` / `--base-slot <ad>` dalları bir kez bile yürütülmedi. Bu, mekanizmanın
+yanlış olduğu anlamına gelmez — hiç sınanmadığı anlamına gelir. Son durum (2026-09-10):
+
+| Yol | Durum |
+|---|---|
+| `install-zeus-module.sh` (varsayılan, `main`) | ✅ defalarca koştu |
+| `install-zeus-module.sh --slot 1.1.0` | ❌ hiç koşmadı |
+| `install-zeus-module.sh --module soap --base-slot 1.1.0` | ❌ hiç koşmadı |
+| Versiyonlu slot'a bağlanan bir uygulamanın deploy'u | ❌ hiç koşmadı |
+
+**İlk versiyonlu slot kurulumunda özellikle sınanacaklar:**
+
+1. **`module.xml`'deki sözdizimi.** `com.zeus.soap` üretilirken versiyonlu dal
+   `<module name="com.zeus:1.1.0"/>` yazıyor (`scripts/install-zeus-module.sh:181-184`);
+   klasik biçim `<module name="com.zeus" slot="1.1.0"/>`. Bu dal hiç çalışmadığı için
+   JBoss Modules'ın onu çözdüğü doğrulanmadı. **İlk sınanacak şey budur.**
+2. **Descriptor ↔ slot uyumu.** Uygulamanın `zeus.module.slot`'u ile sunucuda kurulu
+   slot'un eşleştiği; `verify-module-coverage.sh`'ın slot-kurulu kontrolünün versiyonlu
+   adla da çalıştığı.
+3. **Üretilen dışlama listeleri slot'tan habersizdir.** Liste her zaman çalışma ağacındaki
+   `zeus-wildfly-module` kapanışından üretilir; uygulamanın hedeflediği slot'la ilişkisi
+   yoktur. `main` dışında bir slot hedeflenirken listenin o slot'un içeriğiyle uyumlu
+   olduğunu `verify-module-coverage.sh`'ın ters kapsam kontrolü denetler — ama bu da
+   yalnız `main` üzerinde sınandı.
+
+Bu not, mekanizma gerçekten bir versiyonlu slot'la çalıştırılıp doğrulanana kadar kalır.
 
 ## Doğrulananlar (bu geliştirmede uçtan uca test edildi)
 

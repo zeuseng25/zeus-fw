@@ -17,6 +17,8 @@
 #   WILDFLY_HOME=/path/staging-wildfly ./scripts/slot-inventory.sh
 #
 set -euo pipefail
+# Sessiz ölüm YASAK: set -e ile düşen her komut nerede düştüğünü söylesin.
+trap 'rc=$?; echo "HATA: ${BASH_SOURCE[0]}:${LINENO} — komut başarısız (çıkış ${rc}): ${BASH_COMMAND}" >&2' ERR
 
 WILDFLY_HOME="${WILDFLY_HOME:-/Users/omer/workspaces/intellij/wildfly-41/wildfly-41.0.0.Final}"
 ZEUS_MODULES="${WILDFLY_HOME}/modules/com/zeus"
@@ -44,13 +46,28 @@ if [[ -d "${DEPLOYMENTS}" ]]; then
     for war in "${DEPLOYMENTS}"/*.war; do
         [[ -e "${war}" ]] || continue
         name="$(basename "${war}")"
-        desc="$(unzip -p "${war}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null || true)"
-        line="$(printf '%s' "${desc}" | grep 'name="com\.zeus"' || true)"
-        if [[ -z "${line}" ]]; then
-            slot="-"          # com.zeus kullanmayan / descriptor'sız deployment
+        # (Yutma denetimi 1/4: DÜZELTİLDİ — eskiden unzip 2>/dev/null || true tek başına
+        #  hem "WAR'da bu entry yok" (normal: com.zeus kullanmayan app) hem "WAR bozuk/
+        #  okunamıyor" (gerçek hata) durumlarını AYNI ŞEKİLDE "-" slot'una düşürüyordu; bu
+        #  salt-raporlama bir envanter aracı olsa da, bozuk bir WAR'ın sessizce "com.zeus
+        #  kullanmıyor" gibi görünmesi yanıltıcıdır. Önce zip'in okunabilirliği ayrıca
+        #  doğrulanır; yalnız OKUNABİLİR bir zip'te entry/satır bulunamaması hâlâ meşru
+        #  şekilde opsiyoneldir (aşağıdaki 2/4).
+        if ! unzip -l "${war}" >/dev/null 2>/dev/null; then
+            echo "  ⚠  ${name}: WAR okunamadı (bozuk/erişilemez zip) — slot '?' olarak işaretlendi." >&2
+            slot="?"
         else
-            slot="$(printf '%s' "${line}" | sed -n 's/.*slot="\([^"]*\)".*/\1/p')"
-            [[ -z "${slot}" ]] && slot="main"
+            desc="$(unzip -p "${war}" WEB-INF/jboss-deployment-structure.xml 2>/dev/null || true)"
+            # (Yutma denetimi 2/4: || true OPSİYONEL — zip okunabilir olduğu hâlde grep'in
+            #  eşleşme BULAMAMASI (çıkış 1) com.zeus kullanmayan/descriptor'sız normal bir
+            #  deployment anlamına gelir; bu bir hata değildir.)
+            line="$(printf '%s' "${desc}" | grep 'name="com\.zeus"' || true)"
+            if [[ -z "${line}" ]]; then
+                slot="-"          # com.zeus kullanmayan / descriptor'sız deployment
+            else
+                slot="$(printf '%s' "${line}" | sed -n 's/.*slot="\([^"]*\)".*/\1/p')"
+                [[ -z "${slot}" ]] && slot="main"
+            fi
         fi
         state="?"
         [[ -f "${war}.deployed"   ]] && state="deployed"
@@ -67,6 +84,13 @@ echo ""
 echo "Kurulu slot'lar:"
 for slot in ${SLOTS[@]+"${SLOTS[@]}"}; do
     dir="${ZEUS_MODULES}/${slot}"
+    # (Yutma denetimi 3/4 ve 4/4: 2>/dev/null OPSİYONEL — 'dir' birkaç satır önce AYNI
+    #  dizin taramasından geldi (satır ~32-37), bu yüzden normal koşuda var olmalı; burada
+    #  yalnızca elle müdahale/yarış durumuna (script koşarken dizin silinmesi, izin
+    #  değişikliği) karşı DEFANSİF davranılıyor. find/du başarısız olursa jars/size boş
+    #  basar (0 jar / boş boyut) — bu, salt-raporlama bir envanterde script'i durduracak
+    #  kritik bir hata değildir; asıl slot varlığı zaten SLOTS dizisinde module.xml
+    #  kontrolüyle doğrulanmıştır (satır ~35).)
     jars="$(find "${dir}" -maxdepth 1 -name '*.jar' 2>/dev/null | wc -l | tr -d ' ')"
     size="$(du -sh "${dir}" 2>/dev/null | cut -f1)"
     users=0
@@ -91,9 +115,12 @@ echo ""
 echo "Denetimler:"
 
 # 4a) Kurulu olmayan slot'a işaret eden app → HATA
+# "?" (WAR okunamadı) "-" (com.zeus kullanmıyor) gibi muaftır: slot bilgisi hiç
+# ÖLÇÜLEMEDİĞİNDEN "kurulu değil" iddiası yanlış olur; okunamama zaten yukarıda (1/4)
+# ayrı bir ⚠ ile bildirildi.
 for i in ${APP_NAMES[@]+"${!APP_NAMES[@]}"}; do
     slot="${APP_SLOTS[$i]}"
-    [[ "${slot}" == "-" ]] && continue
+    [[ "${slot}" == "-" || "${slot}" == "?" ]] && continue
     found=0
     for s in ${SLOTS[@]+"${SLOTS[@]}"}; do [[ "${s}" == "${slot}" ]] && { found=1; break; }; done
     if [[ "${found}" == "0" ]]; then

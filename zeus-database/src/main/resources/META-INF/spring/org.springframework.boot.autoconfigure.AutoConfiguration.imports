@@ -1,2 +1,3 @@
 com.zeus.framework.database.ZeusJndiDataSourceAutoConfiguration
 com.zeus.framework.database.ZeusDatabaseAutoConfiguration
+com.zeus.framework.database.ZeusCorrelationDataSourceAutoConfiguration

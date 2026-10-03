@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-bff-parent</artifactId>
+    <packaging>pom</packaging>
+
+    <name>Zeus BFF Parent</name>
+    <description>BFF (Backend-for-Frontend) uygulamalarının parent'ı. zeus-parent'tan türer
+        ama paketleme FARKLIDIR: FAT WAR — tüm 3. parti jar'lar WAR içinde taşınır, paylaşımlı
+        com.zeus WildFly module'üne BAĞIMLILIK YOKTUR (izolasyon). BFF uygulamaları Spring
+        Cloud Gateway Server MVC ile routing yapar ve build alınmış React paketlerini sunar
+        (zeus-bff-starter). NOT: Reaktif gateway (Netty) WildFly'a WAR deploy edilemediği
+        için servlet tabanlı Gateway Server MVC kullanılır.
+        Sürüm politikası: hangi parent kullanılırsa kullanılsın tek ${revision}.</description>
+
+    <properties>
+        <!-- BFF tipi descriptor: subsystem dışlamaları var, com.zeus bağımlılığı YOK. -->
+        <zeus.descriptor.dir>descriptor-bff</zeus.descriptor.dir>
+
+        <!-- FAT WAR (FRAMEWORK/TİP kararı): ince WAR dışlaması boşaltılır — jar'lar
+             dışlanMAZ. BFF, com.zeus module yaşam döngüsünden bağımsız deploy edilir. -->
+        <zeus.war.packaging-excludes/>
+
+        <!-- Miras alınan ama BU TİPTE ANLAMSIZ bir property — bilinçli olarak boşaltılır
+             (aynı gerekçe zeus-standalone-parent'ta da geçerlidir): boşaltılmazsa
+             effective-pom'da "slot: main" görünür ve BFF'in com.zeus'a bağlandığı sanılır.
+             descriptor-bff şablonu bu property'e referans vermez. -->
+        <zeus.module.slot/>   <!-- BFF com.zeus module'üne bağlanmaz (izole) -->
+    </properties>
+
+    <dependencies>
+        <!-- Gömülü Tomcat WAR'a girmesin: konteyner WildFly/Undertow. provided scope,
+             starter-webmvc'nin çektiği tomcat alt ağacını runtime/paket kapanışından düşürür
+             (zeus-wildfly-module'deki kalıbın aynısı). spring-boot:run yine çalışır. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- ═══════════ JENERİK TABAN — uygulama bunları YAZMAZ ═══════════
+             Bu tipi seçen her uygulamada bulunması gereken, HİÇBİRİ ZEUS'A ÖZGÜ OLMAYAN
+             altyapı bağımlılıkları. Amaç: her BFF uygulamasının aynı dört satırı kopyalaması.
+
+             NEDEN PARENT'TA, bir starter'ın içinde DEĞİL: starter'lar YATAY kompoze olur
+             (bir yetenek = bir starter — zeus-bff-starter, zeus-bff-login). Jenerik tabanı
+             bunlardan birinin içine gömmek o bileşeni "hem yetenek hem taban" hâline getirir
+             ve bileşenler birbirini çekmeye başlar. Tipi tanımlayan yer parent'tır.
+
+             ZEUS MODÜLLERİ (zeus-base, zeus-logger, zeus-bff-starter) BURAYA GİRMEZ:
+             onları uygulama kendi pom'unda bildirir — hangi zeus yeteneklerini kullandığı
+             uygulamanın kendi kararıdır ve pom'una bakan biri bunu görebilmelidir.
+
+             BURAYA NE GİRER — tek ölçüt: "Bu tipi seçip bunu İSTEMEYEN bir uygulama olabilir mi?"
+             Hayır ise buraya girer. Evet ise <dependencyManagement>'a girer, uygulama yazar.
+             Ölçüt gevşetilemez: miras alınan bir <dependencies> girdisi çocuk pom'dan
+             KALDIRILAMAZ (<exclusions> yalnız transitive olanlar içindir). -->
+        <dependency>
+            <!-- Web katmanı: BFF tanımı gereği HTTP sunar. Ölçüldü: dört örnek uygulamanın
+                 DÖRDÜ de bunu tek tek yazıyordu. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc</artifactId>
+        </dependency>
+        <dependency>
+            <!-- @Valid / Bean Validation. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <!-- @ConfigurationProperties metadata üreteci (IDE tamamlaması + doğrulama).
+                 optional: yalnız derleme zamanı aracıdır, WAR'a GİRMEZ. -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-configuration-processor</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <!-- zeus-parent'ta annotationProcessorPaths ZATEN lombok'u içerir (pom.xml:170-176);
+                 eksik olan yalnız bağımlılığın kendisiydi ve her uygulama elle yazıyordu.
+                 provided: derleme zamanı anotasyonları; fat WAR'a girmemeli. -->
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>

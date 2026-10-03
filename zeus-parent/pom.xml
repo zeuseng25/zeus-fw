@@ -19,15 +19,6 @@
         zeus-dependencies BOM import'u + ortak plugin yönetimi.</description>
 
     <properties>
-        <!-- App-specific WAR-bundle opt-in'i (ince WAR istisnası).
-             Varsayılan BOŞ → yalnız zeus-* jar'ları WAR'da kalır (3. parti hep module'den).
-             Bir uygulamanın YALNIZCA kendi kullandığı, framework'te/paylaşımlı module'de OLMAYAN
-             bir kütüphaneyi kendi WAR'ında taşıması gerekiyorsa, app pom'unda bu property'yi
-             '|<artifactId-öneki>-' biçiminde set eder (war-plugin config'ini override ETMEDEN).
-             Örn: <zeus.war.keep>|foo-|bar-</zeus.war.keep>
-             Detay: zeus-fw/gelistirmeler/08-wildfly-module-dagitim.md (App-specific dependency). -->
-        <zeus.war.keep/>
-
         <!-- Uygulamanın bağlanacağı paylaşımlı WildFly module SLOT'u (com.zeus:<slot>).
              Üretilen jboss-deployment-structure.xml'e filtering ile yazılır (zeus-war-defaults
              şablonu + aşağıdaki zeus-generated-descriptor profili).
@@ -40,7 +31,58 @@
                (gereksiz slot kopyası oluşmaz).
              Detay: gelistirmeler/10-versiyonlu-slot-uretilen-descriptor.md -->
         <zeus.module.slot>main</zeus.module.slot>
+
+        <!-- SOAP yığınının (com.zeus.soap — yalnız @WebService ENDPOINT yayınlayan SOAP tipi
+             uygulamalarda kullanılır) slot'u. zeus.module.slot ile aynı kategoridedir:
+             PLATFORM release başına sabitlenir, uygulama pom'unda override EDİLMEZ.
+             CXF'in kendisi artık paylaşımlı com.zeus module'ünde olduğu için SOAP İSTEMCİSİ
+             (zeus-sms) kullanan STANDART tip uygulamaların bu property'ye ihtiyacı YOKTUR —
+             yalnızca descriptor-soap şablonu (${zeus.soap.module.slot}) okur. Property yine de
+             burada (zeus-soap-parent'ta değil) tanımlıdır: zeus-soap-parent zeus-parent'tan
+             miras aldığı için değer değişmez, ayrı tutmanın bir kazancı yoktur. Detay:
+             gelistirmeler/20-zeus-sms.md -->
+        <zeus.soap.module.slot>main</zeus.soap.module.slot>
+
+        <!-- Uygulama TİPİNİN descriptor şablon dizini (zeus-war-defaults içindeki dizin adı).
+             Tip parent'ları override eder: descriptor-soap (zeus-soap-parent),
+             descriptor-bff (zeus-bff-parent). Varsayılan: standart ince-WAR REST tipi. -->
+        <zeus.descriptor.dir>descriptor-standard</zeus.descriptor.dir>
+
+        <!-- WAR dışlama politikası — DENYLIST (TİP kararıdır, uygulama kararı değil).
+             Kural: paylaşımlı com.zeus module'ünün SAĞLADIĞI jar'lar WAR'a konmaz; module'de
+             OLMAYAN her şey WAR'da taşınır. Eskiden tersiydi (yalnız zeus-* kalırdı) ve
+             module'de olmayan bağımlılıklar sessizce silinip WildFly'da NoClassDefFoundError
+             üretiyordu — gerekçe: gelistirmeler/19-war-paketleme-module-farkindaligi.md.
+             zeus-bff-parent ve zeus-standalone-parent bu property'yi BOŞALTIR (fat WAR).
+             Aşağıdaki blok ÜRETİLİR; elle düzenlenmez. -->
+        <!-- ZEUS-WAR-EXCLUDES:BEGIN — ÜRETİLMİŞTİR, ELLE DÜZENLEMEYİN (scripts/generate-war-excludes.sh) -->
+        <zeus.war.packaging-excludes>%regex[WEB-INF/lib/(HdrHistogram|HikariCP|LatencyUtils|ST4|angus-activation|angus-mail|annotations|antlr-runtime|antlr4-runtime|asm|aspectjweaver|byte-buddy|classmate|commons-lang3|commons-logging|context-propagation|cxf-core|cxf-rt-bindings-soap|cxf-rt-bindings-xml|cxf-rt-databinding-jaxb|cxf-rt-features-metrics|cxf-rt-frontend-jaxws|cxf-rt-frontend-simple|cxf-rt-transports-http|cxf-rt-ws-addr|cxf-rt-ws-policy|cxf-rt-wsdl|cxf-spring-boot-autoconfigure|cxf-spring-boot-starter-jaxws|error_prone_annotations|hibernate-core|hibernate-models|hibernate-validator|istack-commons-runtime|itu|jackson-annotations|jackson-core|jackson-databind|jackson-dataformat-yaml|jackson-datatype-jdk8|jackson-datatype-jsr310|jackson-module-kotlin|jakarta\.activation-api|jakarta\.annotation-api|jakarta\.inject-api|jakarta\.mail-api|jakarta\.persistence-api|jakarta\.transaction-api|jakarta\.validation-api|jakarta\.xml\.bind-api|jakarta\.xml\.soap-api|jakarta\.xml\.ws-api|jaxb-core|jaxb-runtime|jboss-logging|json-schema-validator|jsonschema-generator|jsonschema-module-jackson|jsonschema-module-swagger-2|jspecify|jtokkit|jul-to-slf4j|kotlin-reflect|kotlin-stdlib|kotlin-stdlib-common|kotlin-stdlib-jdk7|kotlin-stdlib-jdk8|log4j-api|log4j-to-slf4j|logback-classic|logback-core|micrometer-commons|micrometer-core|micrometer-observation|neethi|netty-buffer|netty-codec-base|netty-codec-classes-quic|netty-codec-compression|netty-codec-dns|netty-codec-http|netty-codec-http2|netty-codec-http3|netty-codec-native-quic|netty-codec-socks|netty-common|netty-handler|netty-handler-proxy|netty-resolver|netty-resolver-dns|netty-resolver-dns-classes-macos|netty-resolver-dns-native-macos|netty-transport|netty-transport-classes-epoll|netty-transport-native-epoll|netty-transport-native-unix-common|ojdbc17|okhttp|okio|okio-jvm|openai-java-core|reactive-streams|reactor-core|reactor-netty-core|reactor-netty-http|slf4j-api|snakeyaml|spring-ai-autoconfigure-model-chat-client|spring-ai-autoconfigure-model-chat-memory|spring-ai-autoconfigure-model-chat-observation|spring-ai-autoconfigure-model-embedding-observation|spring-ai-autoconfigure-model-image-observation|spring-ai-autoconfigure-model-openai|spring-ai-autoconfigure-model-tool|spring-ai-autoconfigure-retry|spring-ai-client-chat|spring-ai-commons|spring-ai-model|spring-ai-openai|spring-ai-starter-model-openai|spring-ai-template-st|spring-aop|spring-aspects|spring-beans|spring-boot|spring-boot-autoconfigure|spring-boot-data-commons|spring-boot-data-jpa|spring-boot-hibernate|spring-boot-http-client|spring-boot-http-codec|spring-boot-http-converter|spring-boot-jackson|spring-boot-jdbc|spring-boot-jpa|spring-boot-persistence|spring-boot-reactor|spring-boot-restclient|spring-boot-servlet|spring-boot-sql|spring-boot-starter|spring-boot-starter-data-jpa|spring-boot-starter-jackson|spring-boot-starter-jdbc|spring-boot-starter-logging|spring-boot-starter-restclient|spring-boot-starter-validation|spring-boot-starter-web|spring-boot-starter-webclient|spring-boot-starter-webmvc|spring-boot-transaction|spring-boot-validation|spring-boot-web-server|spring-boot-webclient|spring-boot-webmvc|spring-context|spring-context-support|spring-core|spring-data-commons|spring-data-jpa|spring-expression|spring-jdbc|spring-messaging|spring-orm|spring-tx|spring-web|spring-webflux|spring-webmvc|springdoc-openapi-starter-common|springdoc-openapi-starter-webmvc-api|springdoc-openapi-starter-webmvc-ui|stax2-api|swagger-annotations|swagger-annotations-jakarta|swagger-core-jakarta|swagger-models-jakarta|swagger-ui|tomcat-embed-el|txw2|webjars-locator-lite|woodstox-core|wsdl4j|xml-resolver|xmlschema-core|ojdbc[0-9]+|orai18n|ucp[0-9]+|jakarta\.[a-z.]+-api|lombok|spring-boot-jarmode-[a-z]+|tomcat-embed-[a-z-]+|spring-boot-tomcat|spring-boot-starter-tomcat(-runtime)?)-[0-9][^/]*\.jar]</zeus.war.packaging-excludes>
+        <!-- ZEUS-WAR-EXCLUDES:END -->
+        <!-- surefire argLine'ının GEÇ BAĞLAMA (@{argLine}) tabanı.
+             Boş tanımlı olması şart: aşağıdaki surefire yapılandırması @{argLine} ile başlar;
+             property hiç tanımlı olmazsa surefire ifadeyi literal bırakır ve JVM açılmaz.
+             Bir uygulama JaCoCo eklerse prepare-agent bu property'yi doldurur, Mockito
+             javaagent'ı onun ÜSTÜNE eklenir — iki agent birbirini ezmez. -->
+        <argLine></argLine>
     </properties>
+
+    <!-- ═══════════ Tüm zeus modüllerine ve tüketen uygulamalara ORTAK bağımlılıklar ═══════════ -->
+    <dependencies>
+        <!-- TEST ALTYAPISI — FRAMEWORK KARARI, uygulama yazmaz.
+             Neden burada: surefire provider'ını test classpath'ini tarayarak seçer. JUnit
+             Platform motoru (junit-jupiter-engine) yoksa son çare olarak JUnit3Provider'a
+             düşer — ve build KIRILMAZ: JUnit 5 anotasyonlarını tanımadığı için "Tests run: 0"
+             yazıp yeşil geçer. Hiç test çalıştırmayan yeşil build, kırmızıdan çok daha
+             tehlikelidir. Bu bağımlılık motoru garanti eder, provider bir daha junit3'e düşemez.
+
+             İnce WAR'a etkisi YOK: test scope ne WAR'a girer ne com.zeus module'üne
+             (install-zeus-module.sh -DincludeScope=runtime kullanır, test scope dışarıdadır). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
 
     <dependencyManagement>
         <dependencies>
@@ -66,22 +108,58 @@
                      %regex negatif-lookahead ile "zeus- ile başlamayan tüm jar'lar" dışlanır.
                      WAR üreten uygulamalar bu plugin'i devreye alınca otomatik uygulanır.
 
-                     ÖNEMLİ: WAR'dan 3. parti dışlama bir UYGULAMA değil FRAMEWORK kararıdır ve
-                     buradan zorlanır. Uygulamalar bu yapılandırmayı override ETMEMELİDİR (fat WAR
-                     üretmek yasak). Paylaşımlı 'com.zeus' module'ünü yalnızca framework üretir
+                     ÖNEMLİ: WAR'dan 3. parti dışlama bir UYGULAMA değil FRAMEWORK (TİP) kararıdır ve
+                     buradan zorlanır. Uygulamalar bu yapılandırmayı override ETMEMELİDİR — standart
+                     ve soap tiplerinde fat WAR üretmek yasaktır. TEK istisna framework'ün kendisidir:
+                     zeus-bff-parent, BFF tipini FRAMEWORK KARARIYLA fat WAR yapar
+                     (zeus.war.packaging-excludes boşaltılır). Paylaşımlı 'com.zeus' module'ünü yalnızca framework üretir
                      (scripts/install-zeus-module.sh); uygulamalar module oluşturamaz / module'e jar
                      ekleyemez — yalnızca kendi ince WAR'larını deploy eder.
 
-                     İSTİSNA (app-specific): Bir app, framework'te olmayan ve YALNIZ kendi kullandığı
-                     bir kütüphaneyi kendi WAR'ında taşımak isterse ${zeus.war.keep} property'sini set
-                     eder (plugin override etmeden). Regex o öneki dışlama dışı bırakır → jar WAR'da
-                     kalır, paylaşımlı module'e GİRMEZ. Varsayılan boşken davranış: yalnız zeus-*. -->
+                     İSTİSNA (app-specific): Bir app, framework'te/paylaşımlı module'de olmayan ve
+                     YALNIZ kendi kullandığı bir kütüphaneyi kendi WAR'ında taşıması için bir şey
+                     yazması GEREKMEZ: dışlama listesi yalnız module'ün sağladıklarını kapsar,
+                     gerisi otomatik WAR'a girer. -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-war-plugin</artifactId>
                     <configuration>
-                        <packagingExcludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</packagingExcludes>
+                        <packagingExcludes>${zeus.war.packaging-excludes}</packagingExcludes>
                     </configuration>
+                </plugin>
+
+                <!-- TEST ÇALIŞTIRMA — Mockito'yu javaagent olarak takar.
+                     Java 25'te Mockito inline-mock-maker kendini JVM'e SELF-ATTACH ediyor ve
+                     şu uyarıyı basıyor: "This will no longer work in future releases of the JDK."
+                     JDK self-attach'i kapattığı gün, önlem alınmazsa TÜM uygulamaların testleri
+                     birden kırılır. Agent'ı önden takmak bunu bugünden çözer.
+
+                     ${org.mockito:mockito-core:jar} property'sini aşağıdaki maven-dependency-plugin
+                     'properties' goal'ü üretir. Mockito her modüle zeus-parent'ın
+                     spring-boot-starter-test bağımlılığıyla geldiği için property daima çözülür.
+
+                     @{argLine}: geç bağlama — JaCoCo gibi argLine'ı dolduran eklentilerle
+                     çakışmaz (tabanı yukarıdaki boş <argLine> property'sidir). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-surefire-plugin</artifactId>
+                    <configuration>
+                        <argLine>@{argLine} -javaagent:${org.mockito:mockito-core:jar}</argLine>
+                    </configuration>
+                </plugin>
+
+                <!-- Bağımlılık jar yollarını property olarak açar (yukarıdaki javaagent için). -->
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-dependency-plugin</artifactId>
+                    <executions>
+                        <execution>
+                            <id>zeus-dependency-properties</id>
+                            <goals>
+                                <goal>properties</goal>
+                            </goals>
+                        </execution>
+                    </executions>
                 </plugin>
 
                 <!-- Lombok annotation processor yolu (sürüm Spring Boot BOM'undan). -->
@@ -114,6 +192,19 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <!-- TÜM alt modüllerde ve tüketen uygulamalarda KOŞULSUZ çalışan eklentiler.
+             (pluginManagement yalnızca YAPILANDIRIR; burada listelenmeyen bir eklentinin
+             varsayılan yaşam döngüsünde bağlanması yoksa hiç çalışmaz.) -->
+        <plugins>
+            <!-- dependency:properties — surefire'ın Mockito javaagent'ı için gereken
+                 ${org.mockito:mockito-core:jar} property'sini üretir. Yapılandırması
+                 yukarıdaki pluginManagement'tan gelir. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+            </plugin>
+        </plugins>
     </build>
 
     <profiles>
@@ -159,7 +250,7 @@
                                             <version>${revision}</version>
                                         </artifactItem>
                                     </artifactItems>
-                                    <includes>WEB-INF/**</includes>
+                                    <includes>${zeus.descriptor.dir}/**</includes>
                                     <outputDirectory>${project.build.directory}/zeus-war-defaults</outputDirectory>
                                     <overWriteSnapshots>true</overWriteSnapshots>
                                 </configuration>
@@ -172,7 +263,8 @@
                         <configuration>
                             <webResources>
                                 <resource>
-                                    <directory>${project.build.directory}/zeus-war-defaults</directory>
+                                    <directory>${project.build.directory}/zeus-war-defaults/${zeus.descriptor.dir}</directory>
+                                    <targetPath>WEB-INF</targetPath>
                                     <filtering>true</filtering>
                                 </resource>
                             </webResources>

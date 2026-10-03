@@ -1,0 +1,255 @@
+# 19 — WAR Paketlemesi: allowlist'ten module-farkındalığına (tasarım)
+
+**Durum:** UYGULANDI (2026-09-08). Tasarım kararları ve ölçümler aşağıda; uygulama planı
+`docs/superpowers/plans/2026-09-08-war-paketleme-module-farkindaligi.md`.
+
+> **Güncelleme (2026-09-11) — TEK üretilmiş liste kaldı, ikinci blok kalktı.** Bu dokümanın
+> yazıldığı gün (2026-09-08) yalnız İKİ liste vardı (standard, soap). 2026-09-09'da `zeus-sms`
+> için **ÜÇÜNCÜ** bir liste eklenmişti (`zeus.war.packaging-excludes.with-soap`, aşağıdaki
+> "Üçüncü liste" alt bölümü — artık silindi, tarihsel bilgi için `20-zeus-sms.md`'ye bakın).
+> 2026-09-11'de CXF `zeus-wildfly-module`'e (yani `com.zeus`'a) taşınınca o üçüncü listeye
+> duyulan ihtiyacın **kendisi** ortadan kalktı ve liste + onu üreten opt-in mekanizması
+> (`zeus.descriptor.extra.modules`) **tamamen silindi**. Bugün yalnız TEK bir üretilmiş liste
+> kavramı var: standard ve soap parent'ları AYRI property'ler taşımaya devam ediyor (aşağıdaki
+> "1) Kural tersine döner" bölümündeki tablo hâlâ geçerli), ama CXF artık `com.zeus`'un
+> KENDİ kapanışında olduğundan, ikisinin ÜRETTİĞİ içerik bugün **birebir aynı küme**
+> (ölçüldü: `./scripts/generate-war-excludes.sh --print standard` ile `--print soap` **karakter
+> karakter özdeş**, 193 artifactId). "Kural" tekildir: module'ün verdiğini at; hangi parent'ın
+> hangi module birleşimine baktığı bugün mimari olarak ayrı kalsa da rakamsal fark yok.
+>
+> Bununla birlikte **yeni bir iki yönlü guard** eklendi: `scripts/test-module-liste-esitligi.sh`,
+> `run-guards.sh`'a `wf` etiketiyle kayıtlı. Kurulu module dizini ile üretilen listeyi HER İKİ
+> yönden karşılaştırır — `A \ B` (module'de var, liste yakalamıyor → çift kopya →
+> `LinkageError`) ve `B \ A` (listede var, module'de yok → `NoClassDefFoundError`). Ölçülen
+> (2026-09-11): **180 module jar'ı ∧ 172 dışlanan artifactId — fark YOK**, hem standard hem
+> soap çiftinde (soap çifti `com.zeus ∪ com.zeus.soap` birleşimine bakar; `com.zeus.soap` bugün
+> 0 jar). Guard'ın KAPSAM SINIRI: `com.zeus.soap`'ı TEK BAŞINA hiç ölçmez, yalnız birleşim
+> içinde — aynı jar'ın HER İKİ module'de birden durması (çift kopya) bu guard'dan KAÇAR. Detay,
+> mutasyon kanıtları ve kod: `scripts/test-module-liste-esitligi.sh` başlığı,
+> `08-wildfly-module-dagitim.md`, `.superpowers/sdd/2026-09-11-cxf-com-zeus-ve-script-sertlestirme/task-3-report.md`.
+
+İnce WAR'ın hangi jar'ları taşıyacağı bugün **yanlış tarafta** tanımlı. Kural
+"module'ün verdiğini at" olması gerekirken "zeus- dışındakini at" biçiminde yazılmış.
+Bu doküman kusuru, kararları ve hedef tasarımı kayıt altına alır.
+
+## Kusur
+
+`zeus-parent/pom.xml`:
+
+```xml
+<zeus.war.packaging-excludes>%regex[WEB-INF/lib/(?!(zeus-${zeus.war.keep})).*\.jar]</zeus.war.packaging-excludes>
+```
+
+Bu bir **allowlist**: adı `zeus-` ile başlamayan **her** jar atılır. Ölçüldü —
+`spring-wildfly-arch`'ın WAR'ında `WEB-INF/lib` tam olarak beş dosya:
+`zeus-base`, `zeus-service`, `zeus-ai`, `zeus-database`, `zeus-logger`.
+
+Olması gereken **denylist**: paylaşımlı module'ün sağladığı jar'lar atılır, **geri kalan
+her şey WAR'da taşınır**.
+
+**Neden önemli:** `com.zeus` module'ü 157 jar içerir; bir uygulamanın runtime kapanışı
+bundan geniş olabilir. Bugünkü kuralda o fazlalık **sessizce silinir** ve WildFly'da
+`NoClassDefFoundError` olarak geri döner — genelde deploy anında, kriptik bir hatayla
+(`08-wildfly-module-dagitim.md`). Tek kaçış yolu `zeus.war.keep` ile elle jar öneki
+listesi yazmaktır; bugün hiçbir uygulama kullanmıyor.
+
+Yani eksik bir özellik değil, **varsayılanın yanlış yönde olması** söz konusu. Güvenli
+varsayılan "bilmediğimi at" değil, "bildiğimi at, kalanı taşı" olmalıydı.
+
+## Reddedilen yaklaşımlar (ölçümle)
+
+Tasarım iki deneyle daraltıldı; ikisi de negatif çıktı ve kaydı burada tutulur ki
+ileride tekrar denenmesin.
+
+**1) `provided` scope toplayıcısı — ÇALIŞMIYOR.** Uygulamaya `zeus-wildfly-module`
+`type=pom, scope=provided` olarak eklenirse Maven tüm module kapanışını `provided`
+işaretler ve WAR'dan doğal olarak düşer diye denendi.
+
+| | `WEB-INF/lib` jar sayısı |
+|---|---|
+| Baseline (`packagingExcludes` boş) | 170 |
+| + `zeus-wildfly-module` provided/pom | 170 |
+
+Hiç fark yok. Sebep: aynı artefaktlar `zeus-base`/`zeus-database` üzerinden de derinlik
+2'de `compile` olarak gelir; Maven'ın "en yakın kazanır" mediasyonunda `provided`
+işareti tutmaz. **Saf Maven scope hilesiyle çözülemez.**
+
+**2) `properties-maven-plugin` ile runtime override — ÇALIŞMIYOR.** Liste bir properties
+dosyasından okunup `zeus.war.packaging-excludes`'a set edilsin, `maven-war-plugin` onu
+görsün diye denendi. Sonuç: WAR'da yine yalnız 5 zeus jar'ı — war-plugin POM'daki
+orijinal değeri kullandı. Maven `${...}` ifadesini efektif model kurulurken çözer;
+plugin'in sonradan set ettiği değer ona ulaşmaz.
+
+Bu ikinci sonuç, listenin **runtime'da enjekte edilemeyeceğini**, dolayısıyla POM'a
+**yazılması** gerektiğini söyler.
+
+## Hedef tasarım (B′)
+
+### 1) Kural tersine döner — TEK üretilmiş liste, iki taşıyıcı property
+
+`zeus-parent/pom.xml` ve `zeus-soap-parent/pom.xml`, property'yi üretilmiş bir denylist
+olarak taşır:
+
+```xml
+<!-- ÜRETİLMİŞTİR — elle düzenlenmez. Üretici: scripts/generate-war-excludes.sh -->
+<zeus.war.packaging-excludes>%regex[WEB-INF/lib/(spring-core|spring-beans|jackson-databind|…)-.*\.jar]</zeus.war.packaging-excludes>
+```
+
+| Tip | Parent | Atılan küme | WAR'da kalan |
+|---|---|---|---|
+| standard | `zeus-parent` | `com.zeus` | `zeus-*` + hiçbir module'de olmayanlar |
+| soap | `zeus-soap-parent` | `com.zeus` ∪ `com.zeus.soap` | `zeus-*` + hiçbir module'de olmayanlar |
+| bff | `zeus-bff-parent` | — (boş; fat WAR) | her şey |
+| standalone | `zeus-standalone-parent` | — (boş; fat WAR) | her şey |
+
+(Tablodaki artifactId sayıları 2026-09-08'de 157/157+23 idi; CXF `com.zeus`'a taşındıktan
+sonraki güncel sayı için dosyanın en başındaki "Güncelleme" kutusuna bakın — standard ve soap
+bugün **aynı** 193 artifactId'ye denk geliyor, çünkü `com.zeus.soap` küme farkıyla boşaldı.)
+
+İki parent iki AYRI property taşımaya devam eder (mimari olarak ayrı kalırlar — `zeus-soap-parent`
+kendi `com.zeus ∪ com.zeus.soap` birleşimini hesaplar), ama içerikleri bugün rastlantı değil,
+**kümelerin gerçekten eşit olmasının** doğal sonucu olarak özdeştir.
+
+**Tarihsel not — bir ZAMANLAR üçüncü bir liste vardı, artık YOK.** 2026-09-09'da `zeus-sms`
+için `zeus.war.packaging-excludes.with-soap` adında ÜÇÜNCÜ bir üretilmiş property eklenmişti:
+standart parent'ta kalıp `zeus.descriptor.extra.modules` ile `com.zeus.soap`'ı **opt-in**
+import eden uygulamalar (o zamanki CXF-istemci deseni) için, varsayılan standard listenin
+CXF'in kapanışından habersiz kalmasını telafi ediyordu. 2026-09-11'de CXF `com.zeus`'a
+taşınınca opt-in mekanizmasının **kendisi** silindi (`zeus.descriptor.extra.modules` dahil);
+telafi edilecek bir boşluk kalmadığından bu üçüncü liste de kaldırıldı. Detay:
+`20-zeus-sms.md` → "Tarihsel: WAR paketleme çelişkisi ve `${zeus.war.packaging-excludes.with-soap}`
+çözümü (artık geçersiz)".
+
+**SOAP tipi ayrı liste ZORUNLU.** `zeus-soap-parent` bu property'yi bugün override
+etmiyor, `zeus-parent`'tan miras alıyor. Allowlist'te bu zararsızdı (zaten her şey
+atılıyordu); denylist'e çevrilince tek liste kullanılırsa CXF yığını SOAP WAR'ına girer
+ve `com.zeus.soap` module'üyle **çift kopya** oluşur → `LinkageError`. Kural:
+**`com.zeus` veya `com.zeus.soap` içindeki hiçbir bağımlılık WAR'a konmaz.**
+
+Eşleştirme **artifactId bazındadır**, sürüm dahil değildir: aynı artifactId module'deyse
+sürüm farklı olsa bile WAR'a girmez. Böylece runtime'da tek kopya kalır ve module'ün
+sürümü geçerli olur (lockstep korunur). Sürüm çakışmasının alternatifi — app'in kendi
+sürümünü taşıması — classpath'te iki kopya bırakır ve hangisinin yükleneceği
+classloader sırasına kalırdı; bilinçle reddedildi.
+
+`zeus-*` jar'ları listede **yer almaz**, çünkü `install-zeus-module.sh` onları zaten
+module'e koymaz (`EXCLUDE_REGEX`). Dolayısıyla WAR'da kalmaları için özel bir kural
+gerekmez — doğal sonuçtur. Aynı şey `ojdbc*`/`orai18n`/`ucp*` ve `jakarta.*-api` için de
+geçerlidir: module'de olmadıkları için "module'de ne varsa" kuralına göre listeye
+girmezlerdi. Bu istenmez — aşağıdaki "Module dışı sabit kuyruk" bölümü onları listeye
+açıkça ekler.
+
+### 2) Üretici: `scripts/generate-war-excludes.sh`
+
+`zeus-wildfly-module`'ün (soap listesi için ek olarak `zeus-soap-wildfly-module`'ün)
+runtime bağımlılık kapanışını `dependency:list -DincludeScope=runtime` ile çözer,
+artifactId kümesini çıkarır, iki parent POM'daki property bloğunu yeniden yazar.
+
+Kapanış çözümü `install-zeus-module.sh`'ın module'ü üretirken kullandığı **kaynağın
+aynısıdır**; dışlama kümesi de aynı olmalıdır (`zeus-*`, `jakarta.*-api`, `lombok`,
+`ojdbc*`/`orai18n`/`ucp*`) — yani "module'de fiilen ne varsa liste odur".
+
+**Argümansız çalıştırmanın varsayılanı `--check`'tir** (salt-okunur). Yazma niyeti her zaman
+`--write` ile açıkça belirtilir; modlarının çoğu salt-okunur olan bir script'in kazara POM
+yazması istenmez. `install-zeus-module.sh` zaten açıkça `--write` çağırır.
+
+**Drift'i imkânsız kılan bağlantı:** `install-zeus-module.sh` kendi sonunda bu üreticiyi
+çağırır. Module ve liste aynı komuttan, aynı kapanıştan üretilir; ayrı bir senkron
+denetimi gerekmez. Üretici tek başına da çalıştırılabilir (`--check` ile yalnız fark
+raporlar, CI için).
+
+### 3) Kaldırılanlar
+
+- **`zeus.war.keep`** — varlık sebebi tam olarak bu boşluktu. Hiçbir uygulama
+  kullanmıyor; property, kullanımları ve dokümantasyonu silinir.
+- **`verify-module-coverage.sh`'ın "eksik bağımlılık" dalı** — artık **yanlış pozitif**
+  üretir: eksik olan jar WAR'da taşınacağı için deploy'u durdurmak yanlıştır. Bu dal ve
+  `EXCLUDE_REGEX`/`KEEP` mantığı silinir. **Slot-kurulu-mu** (uygulama SOAP tipiyse
+  `com.zeus` VE `com.zeus.soap` slot'ları için) ve **üretilmiş-descriptor** kontrolleri
+  kalır; ikisi de hâlâ gerçek hataları yakalar.
+
+  Bunların yerine **ters yönlü** bir kontrol eklenir (aşağıdaki §4'ün simetriği):
+  **"WAR'dan sildiğimiz her artifactId hedeflenen slot'ta GERÇEKTEN var olmalı."**
+  Gerekçe: üretilen liste her zaman çalışma ağacındaki `zeus-wildfly-module` kapanışından
+  doğar ve uygulamanın bağlandığı `zeus.module.slot` ile yapısal bir bağı yoktur. Module
+  yalnız staging'e kurulmuşsa ya da app eski bir immutable slot'u hedefliyorsa, o slot'ta
+  OLMAYAN bir jar WAR'dan atılır → `NoClassDefFoundError`. §4'ün kabul ettiği taviz bunun
+  TERSİDİR (module'de olmayanın WAR'a konması, ki zararsızdır); bu yön kabul edilmiş bir
+  taviz değildir. Kontrol, aşağıdaki **sabit kuyruk** girdilerini kapsam dışı tutar —
+  onlar module'de bilerek yoktur; tutulmasaydı guard her zaman kırmızı olurdu.
+
+### 4) Bilinçli kabul edilen taviz
+
+Module'de olmayan bağımlılık **sessizce** WAR'a girer; ne build ne deploy uyarı basar.
+Bedeli: `zeus-wildfly-module` zamanla uygulamaların gerisine düşebilir ve kimse fark
+etmez — paylaşımlı module'ün "tüm uygulamaların birleşimi" iddiası zayıflar
+(`08-wildfly-module-dagitim.md`). Karşılığında deploy hiç kırılmaz ve sıfır ek makine
+kurulur.
+
+Bu bir gözden kaçma değil, **maliyet gerekçeli bir karardır**. Yeniden açılma
+tetikleyicisi: WAR boyutlarının belirgin büyümesi ya da aynı 3. parti kütüphanenin
+birden çok uygulamada WAR'da taşındığının fark edilmesi. O noktada build zamanı uyarısı
+(antrun) yeniden değerlendirilir.
+
+## Module dışı sabit kuyruk (üretilen listeye her zaman eklenir)
+
+Denylist "module'de ne varsa o" kuralıyla üretilir, ama module'de **bilerek olmayan** ve
+yine de WAR'a girmemesi gereken bir küme vardır. Bunlar üretilen listenin sonuna sabit
+olarak eklenir:
+
+| Kalıp | Neden WAR'a girmemeli |
+|---|---|
+| `ojdbc[0-9]+`, `orai18n`, `ucp[0-9]+` | WildFly'ın kendi `com.oracle.ojdbc` module'ünden gelir; datasource ona bağlıdır. WAR'da ikinci kopya olursa JNDI'dan gelen `Connection` ile uygulamanın gördüğü tip ayrışır → `ClassCastException` (`08-wildfly-module-dagitim.md`). |
+| `jakarta.*-api` | WildFly server module'lerinden gelir. WAR'daki kopya konteynerin API'siyle çakışır → `LinkageError`. |
+| `lombok`, `spring-boot-jarmode-*` | Runtime'da işlevsiz; WAR'ı şişirir. |
+| `tomcat-embed-*`, `spring-boot-tomcat`, `spring-boot-starter-tomcat[-runtime]` | Konteyner WildFly/Undertow'dur; gömülü Tomcat'in WAR'da işi yoktur. `tomcat-embed-core` **146 adet `jakarta/servlet/**` sınıfı** taşır → deployment classloader'ında servlet API'sinin ikinci kopyası → `jakarta.*-api` girdisinin önlemek için var olduğu `LinkageError`'un ta kendisi (kural jar'ın İÇİNDEKİNE değil artifactId YAZILIŞINA baktığı için yanından dolaşarak). `packagingExcludes` yalnız paketlemeyi etkiler; `spring-boot:run` / `local` profil bundan etkilenmez. |
+
+**Kural tek cümlede:** sabit kuyruk, `install-zeus-module.sh`'ın `EXCLUDE_REGEX`'inden
+`zeus-*` çıkarılmış hâli **artı gömülü Tomcat**'tir. O regex zaten "module'e girmez"
+diyen kümedir; `zeus-*` dışındaki her üyesi aynı zamanda "WAR'a da girmez" demektir.
+İki sapma vardır:
+- `zeus-*` — module'e girmez **ama** WAR'da taşınır (tek istisna).
+- **gömülü Tomcat** — module'e GİRER (kapanışta `tomcat-embed-el` vardır) ama WAR'a
+  girmemelidir. Allowlist döneminde "zeus- olmayan her şey atılır" kuralı bunu ÖRTÜLÜ
+  olarak hallediyordu; polarite çevrilince o koruma kalktı ve gömülü Tomcat ince WAR'lara
+  girmeye başladı (ölçüldü: `zeus-sample-soap` WAR'ında 5 Tomcat jar'ı). Bu yüzden sabit
+  kuyruğa açıkça eklendi. Tip parent'ları ayrıca `spring-boot-starter-tomcat`'i `provided`
+  bildirir; iki katman (bağımlılık kapanışı + paketleme) birlikte çalışır ve uygulamanın
+  bu bildirimi tekrarlamasına gerek kalmaz.
+
+Bu, `ojdbc` açısından bugünkü davranışın **korunması** demektir: allowlist onu zaten
+atıyordu, denylist de atmaya devam edecek. Sabit kuyruk olmasaydı ojdbc WAR'a girer ve
+sürücü tekliği bozulurdu — bu tasarımın en kolay gözden kaçacak ayrıntısıdır.
+
+## Kalıntı risk: artifactId eşleşmesi groupId'ye bakmaz
+
+Eşleşme artifactId bazlıdır, groupId'ye bakmaz. Dolayısıyla farklı bir groupId'den gelen
+aynı adlı bir artefakt (listede `annotations`, `okio`, `ST4`, `itu` gibi genel adlar var)
+WAR'dan atılır ama module başka bir üreticinin sınıflarını sağlar → `NoClassDefFoundError`.
+Bu, "sürümden bağımsız artifactId eşleşmesi" kararının kabul edilmiş bedelidir; bugün
+bilinen bir örneği yoktur, ama yeni bir bağımlılık eklenirken akılda tutulmalıdır.
+
+## Doğrulama planı
+
+| Kapı | Beklenen | Sonuç |
+|---|---|---|
+| `spring-wildfly-arch` WAR'ının jar kümesi | **Değişmemeli** — kapanışı `com.zeus` tarafından tam karşılanıyor (`verify-module-coverage.sh` ✅ ile ölçüldü). Regresyon yok kanıtı. | ✅ 5 jar (`zeus-base`, `zeus-service`, `zeus-ai`, `zeus-database`, `zeus-logger`) — allowlist dönemindeki sayıyla birebir aynı |
+| `spring-wildfly-arch` WildFly deploy + smoke | Yeşil | ✅ WildFly 41.0.0.Final'a gerçek deploy: `WFLYSRV0016: Replaced deployment`, uygulama `/spring-wildfly-arch` context'i altında yanıt verdi (`GET /api/products` → 200), tek seferlik elle yapılmış log denetiminde `ERROR`/`NoClassDefFoundError`/`LinkageError`/`ClassCastException` **sıfır** (scripted test değildir). Fonksiyonel smoke (`http://127.0.0.1:8080` — `localhost` bu makinede Docker'ın IPv6 dinleyicisine düşüyor, `17-module-yenileme-runbook.md`'deki bilinen tuzak): Oracle stored procedure'lerinden 5 gerçek kayıt; `GET /v3/api-docs` → **200**. |
+| SOAP örnek uygulaması WAR'ı | Hiçbir CXF jar'ı içermemeli; ince WAR'da yalnız `zeus-*` kalmalı | ✅ `zeus-sample-soap` WAR'ında `cxf`/`wsdl4j` eşleşmesi **0**; **3 jar toplam, üçü de `zeus-*`** (`zeus-base`, `zeus-logger`, `zeus-soap`). Ara durumda 8 jar vardı ve bunların 5'i gömülü Tomcat'ti (`tomcat-embed-core/-websocket`, `spring-boot-tomcat`, `spring-boot-starter-tomcat[-runtime]`); sabit kuyruk + `provided` bildirimiyle giderildi. `test-war-packaging-soap.sh` artık "WAR'da SADECE `zeus-*` var" iddiasını assert eder. |
+| ojdbc | WAR'da **0** kopya | ✅ `spring-wildfly-arch` WAR'ında `WEB-INF/lib/ojdbc*` **0** |
+| `test-project--service` | Bugün silinen jar'lar WAR'a girmeli, deploy geçmeli | **doğrulanmadı — bu ortamda erişilemiyor.** Uygulama Windows geliştirme makinesinde (`D:/dvl_ij/...`); bu workspace'te yok. |
+| bff / standalone WAR'ları | Değişmemeli (property boş kalır) | ✅ `zeus-bff-parent`/`zeus-standalone-parent`'ta `<zeus.war.packaging-excludes/>` hâlâ boş; `zeus-sample-bff` 52 jar, `zeus-sample-standalone` 40 jar (fat WAR — dışlama yok) |
+
+Ayrıca: altı test (`test-generate-war-excludes.sh`, `test-war-packaging.sh`,
+`test-war-packaging-soap.sh`, `test-no-war-keep.sh`, `test-coverage-guard.sh`,
+`test-generator-wiring.sh`) + `./scripts/generate-war-excludes.sh --check` + framework
+`mvn clean install` (testler dahil, `-DskipTests` yok) hepsi ✅.
+
+## İlgili
+
+- `08-wildfly-module-dagitim.md` — module üretimi, `EXCLUDE_REGEX`, sürücü kuralı, CXF'in
+  `com.zeus`'a neden taşındığı
+- `10-versiyonlu-slot-uretilen-descriptor.md` — üretilen descriptor, slot lockstep
+- `14-uygulama-tipi-parentlar.md` — tip parent'ları, fat WAR tipleri
+- `17-module-yenileme-runbook.md` — module yenileme akışı (üretici buraya bağlanır)
+- `20-zeus-sms.md` — kaldırılan üçüncü liste ve opt-in mekanizmasının tarihçesi

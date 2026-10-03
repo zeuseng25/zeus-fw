@@ -33,6 +33,18 @@
              (CVE gerekirse override yeri zeus-dependencies BOM'udur, burası değil.) -->
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
+        <!-- Oracle sürücü ailesi (ojdbc17 + ucp17 + orai18n + ons/simplefan/oraclepki/xdb).
+             BURADA olmasının sebebi Maven öncelik kuralıdır: Spring Boot BOM'u bu aileyi
+             ZATEN yönetir (Boot 4.0.7 → 23.9.0.25.07) ve o yönetim spring-boot-starter-parent
+             üzerinden PARENT ZİNCİRİYLE miras alınır. zeus-dependencies'teki bir giriş
+             IMPORT yoluyla geldiği için miras alınana KAYBEDER — pratikte etkisiz kalır.
+             Boot parent'ken bir Boot sürümünü ezmenin tek doğru yolu, Boot'un kendi
+             property'sini aynı adla yeniden tanımlamaktır. Buradan tüm zeus modülleri ve
+             tüketen uygulamalar aynı sürümü görür.
+             DİKKAT: WildFly'ın com.oracle.ojdbc module'ü bu değerle EL İLE hizalanmalıdır
+             (bkz. gelistirmeler/17-module-yenileme-runbook.md). -->
+        <oracle-database.version>23.26.3.0.0</oracle-database.version>
+
         <flatten-maven-plugin.version>1.6.0</flatten-maven-plugin.version>
     </properties>
 
@@ -40,16 +52,30 @@
     <modules>
         <module>zeus-dependencies</module>
         <module>zeus-parent</module>
+        <!-- Uygulama TİPİNE özel parent'lar (zeus-parent'tan türerler; tek ${revision}). -->
+        <module>zeus-soap-parent</module>
+        <module>zeus-bff-parent</module>
+        <!-- com.zeus module'üne bağlanmayan, self-contained WAR üreten tip. -->
+        <module>zeus-standalone-parent</module>
         <module>zeus-base</module>
         <module>zeus-logger</module>
         <module>zeus-database</module>
         <module>zeus-service</module>
         <module>zeus-redis</module>
         <module>zeus-batch</module>
+        <!-- LLM erişimi (Spring AI 2.x, OpenAI-uyumlu endpoint: vLLM / LiteLLM / OpenRouter). -->
+        <module>zeus-ai</module>
+        <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
+        <module>zeus-soap</module>
+        <module>zeus-sms</module>
+        <module>zeus-bff-starter</module>
+        <module>zeus-bff-login</module>
         <!-- WAR uygulamalarına build'de enjekte edilen varsayılan deployment dosyası şablonları. -->
         <module>zeus-war-defaults</module>
-        <!-- Paylaşımlı WildFly 'com.zeus' module'ünün 3. parti bağımlılık sözleşmesi (jar üretmez). -->
+        <!-- Paylaşımlı WildFly module bağımlılık sözleşmeleri (jar üretmezler):
+             com.zeus (temel Spring yığını) + com.zeus.soap (CXF yığını). -->
         <module>zeus-wildfly-module</module>
+        <module>zeus-soap-wildfly-module</module>
     </modules>
 
     <build>
