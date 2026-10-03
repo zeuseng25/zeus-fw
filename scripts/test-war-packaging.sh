@@ -21,9 +21,12 @@ got="$(libs)"
 # app zeus-sms'e (CXF SOAP istemcisi) bağımlıdır — hiçbir opt-in property YAZMAZ artık:
 # CXF paylaşımlı com.zeus module'ünde (zeus-wildfly-module/pom.xml), opt-in mekanizması
 # (zeus.descriptor.extra.modules / zeus.war.packaging-excludes.with-soap) tamamen kalktı.
-# Beklenen zeus jar sayısı 7 (zeus-sms + zeus-ai-mcp dahil); CXF ve MCP yığınları module'den
-# geldiği için WAR'a hiç GİRMEMELİ (standart dışlama listesi cxf-* ve mcp-* içeriyor).
+# Beklenen zeus jar sayısı 8 (zeus-sms + zeus-ai-mcp + zeus-ai-agent dahil); CXF ve MCP
+# yığınları module'den geldiği için WAR'a hiç GİRMEMELİ (standart dışlama listesi cxf-*
+# ve mcp-* içeriyor). zeus-ai-agent de aynı kuralla WAR'a girer: module'e hiç girmediği
+# için dışlama listesinde de yoktur (zeus-* jar'ları her zaman WAR'dadır).
 expected="zeus-ai
+zeus-ai-agent
 zeus-ai-mcp
 zeus-base
 zeus-database
@@ -31,7 +34,7 @@ zeus-logger
 zeus-service
 zeus-sms"
 got_names="$(sed 's/-2\.0\.0-SNAPSHOT\.jar$//' <<< "${got}" | sort)"
-[[ "${got_names}" == "${expected}" ]] && say 0 "tam 7 zeus jar'ı (zeus-sms + zeus-ai-mcp dahil)" || { say 1 "tam 7 zeus jar'ı (zeus-sms + zeus-ai-mcp dahil)"; echo "--- gelen:"; echo "${got}"; }
+[[ "${got_names}" == "${expected}" ]] && say 0 "tam 8 zeus jar'ı (zeus-sms + zeus-ai-mcp + zeus-ai-agent dahil)" || { say 1 "tam 8 zeus jar'ı (zeus-sms + zeus-ai-mcp + zeus-ai-agent dahil)"; echo "--- gelen:"; echo "${got}"; }
 grep -qE '^ojdbc' <<< "${got}" && say 1 "ojdbc WAR'da YOK" || say 0 "ojdbc WAR'da YOK"
 grep -qE '^jakarta\.' <<< "${got}" && say 1 "jakarta api WAR'da YOK" || say 0 "jakarta api WAR'da YOK"
 grep -qE '^cxf-' <<< "${got}" && say 1 "CXF (com.zeus) WAR'da YOK" || say 0 "CXF (com.zeus) WAR'da YOK"
