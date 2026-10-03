@@ -115,6 +115,22 @@
             <artifactId>spring-ai-starter-model-openai</artifactId>
         </dependency>
 
+        <!-- MCP sunucusu (zeus-ai-mcp modülünün 3. parti kapanışı). Kapanışa TAM 9 jar ekler
+             (ölçüldü 2026-10-03, .superpowers/sdd/2026-10-03-zeus-ai-mcp-server/task-1-report.md):
+             spring-ai-starter-mcp-server-webmvc, spring-ai-autoconfigure-mcp-server-{common,webmvc},
+             spring-ai-mcp, spring-ai-mcp-annotations, mcp-spring-webmvc ve
+             io.modelcontextprotocol.sdk:{mcp, mcp-core, mcp-json-jackson3}.
+             zeus-ai-mcp'nin KENDİ jar'ı buraya GİRMEZ — zeus-* olduğu için WAR'da taşınır.
+
+             DİKKAT: bu starter spring-boot-starter-web çeker ve o da tomcat-embed-core'u
+             COMPILE scope'ta getirir. Aşağıdaki spring-boot-starter-tomcat/provided bildirimi
+             tüm tomcat-embed-* alt ağacını kapanıştan düşürür — ölçülerek doğrulandı
+             (kapanışta tomcat-embed-core/websocket eşleşmesi: 0). O satır KALDIRILAMAZ. -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
+
         <!-- Gömülü Tomcat module'e KONMAZ: WildFly servlet konteyneri (Undertow) kullanılır.
              Boot 4'te de starter-webmvc varsayılan olarak starter-tomcat çeker; provided scope
              ile tüm alt ağacı (starter-tomcat-runtime, spring-boot-tomcat, tomcat-embed-core/

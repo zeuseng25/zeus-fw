@@ -21,19 +21,27 @@ got="$(libs)"
 # app zeus-sms'e (CXF SOAP istemcisi) bağımlıdır — hiçbir opt-in property YAZMAZ artık:
 # CXF paylaşımlı com.zeus module'ünde (zeus-wildfly-module/pom.xml), opt-in mekanizması
 # (zeus.descriptor.extra.modules / zeus.war.packaging-excludes.with-soap) tamamen kalktı.
-# Beklenen zeus jar sayısı 6 (zeus-sms dahil); CXF yığını module'den geldiği için WAR'a
-# hiç GİRMEMELİ (standart dışlama listesi artık cxf-* içeriyor).
+# Beklenen zeus jar sayısı 7 (zeus-sms + zeus-ai-mcp dahil); CXF ve MCP yığınları module'den
+# geldiği için WAR'a hiç GİRMEMELİ (standart dışlama listesi cxf-* ve mcp-* içeriyor).
 expected="zeus-ai
+zeus-ai-mcp
 zeus-base
 zeus-database
 zeus-logger
 zeus-service
 zeus-sms"
 got_names="$(sed 's/-2\.0\.0-SNAPSHOT\.jar$//' <<< "${got}" | sort)"
-[[ "${got_names}" == "${expected}" ]] && say 0 "tam 6 zeus jar'ı (zeus-sms dahil)" || { say 1 "tam 6 zeus jar'ı (zeus-sms dahil)"; echo "--- gelen:"; echo "${got}"; }
+[[ "${got_names}" == "${expected}" ]] && say 0 "tam 7 zeus jar'ı (zeus-sms + zeus-ai-mcp dahil)" || { say 1 "tam 7 zeus jar'ı (zeus-sms + zeus-ai-mcp dahil)"; echo "--- gelen:"; echo "${got}"; }
 grep -qE '^ojdbc' <<< "${got}" && say 1 "ojdbc WAR'da YOK" || say 0 "ojdbc WAR'da YOK"
 grep -qE '^jakarta\.' <<< "${got}" && say 1 "jakarta api WAR'da YOK" || say 0 "jakarta api WAR'da YOK"
 grep -qE '^cxf-' <<< "${got}" && say 1 "CXF (com.zeus) WAR'da YOK" || say 0 "CXF (com.zeus) WAR'da YOK"
+# MCP yığını da module'den gelir: SDK jar'ları (mcp, mcp-core, mcp-json-jackson3,
+# mcp-spring-webmvc) ve spring-ai-*mcp* WAR'a girmemeli. WAR'da taşınan tek MCP parçası
+# zeus-ai-mcp'nin KENDİ jar'ıdır (zeus-* kuralı) ve o yukarıdaki listede sayılıyor.
+grep -qE '^(mcp|mcp-core|mcp-json-jackson3|mcp-spring-webmvc)-' <<< "${got}" \
+    && say 1 "MCP SDK (com.zeus) WAR'da YOK" || say 0 "MCP SDK (com.zeus) WAR'da YOK"
+grep -qE '^spring-ai-' <<< "${got}" && say 1 "spring-ai-* (com.zeus) WAR'da YOK" \
+    || say 0 "spring-ai-* (com.zeus) WAR'da YOK"
 
 echo ">> B) YENİ DAVRANIŞ: module'de olmayan bağımlılık WAR'a GİRMELİ"
 # NOT: sabit paylaşımlı `/tmp/wpt-pom.bak` KULLANMIYORUZ — herkesin yazabildiği ortak bir

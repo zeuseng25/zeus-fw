@@ -21,6 +21,16 @@ public final class ZeusCapabilities {
     }
 
     public static final List<ZeusCapability> HEPSI = List.of(
+            // SIRA KRİTİKTİR — 'ai-mcp' ÖNEKİ 'ai' ÖNEKİNİN ALT KÜMESİDİR.
+            // sahipBul() findFirst() kullanır: 'ai' önce gelirse ('org.springframework.ai.')
+            // MCP autoconfig'lerini de o sahiplenir, zeus.ai.mcp.enabled HİÇBİR ŞEY YAPMAZ ve
+            // MCP ucu AI açan her uygulamada sessizce yayına girer. Satırların yerini DEĞİŞTİRMEYİN.
+            // Bu sırayı test-autoconfig-sahipligi.sh KORUMAZ (geniş önek de sınıflandırdığı için
+            // ters sırada da yeşil kalır); koruyan şey ZeusCapabilitiesSiralamaTest'tir.
+            new ZeusCapability("ai-mcp", "zeus.ai.mcp.enabled",
+                    "com.zeus.framework.ai.mcp.ZeusMcpAutoConfiguration",
+                    List.of("org.springframework.ai.mcp.")),
+
             new ZeusCapability("ai", "zeus.ai.enabled",
                     "com.zeus.framework.ai.ZeusAiAutoConfiguration",
                     List.of("org.springframework.ai.")),

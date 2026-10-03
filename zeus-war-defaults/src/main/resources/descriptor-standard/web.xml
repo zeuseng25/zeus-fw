@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  BU DOSYA FRAMEWORK TARAFINDAN ÜRETİLİR — ELLE YAZILMAZ / APP REPO'SUNDA TUTULMAZ.
+  Şablon: zeus-fw/zeus-war-defaults. zeus-parent, WAR build'inde şablon dizinini açar ve
+  içindeki her dosyayı WEB-INF'e koyar (bkz. zeus-generated-descriptor profili).
+
+  NEDEN VAR: metadata-complete="true" — servlet/filter/listener ANOTASYON taramasını kapatır.
+
+  Bu, jboss-deployment-structure.xml'deki subsystem dışlamalarıyla AYNI AİLEDEN bir önlemdir.
+  Oradaki yorumun dediği gibi: com.zeus module'ü annotations="true" ile import edildiği için
+  module jar'larının Jandex index'leri deployment'ın composite index'ine girer ve kullanmadığımız
+  subsystem'ler (CDI, batch, JSF, JAX-RS) module sınıflarını tarayıp link etmeye çalışır. Onlar
+  dışlanarak çözülüyor. Servlet (undertow) subsystem'i ise DIŞLANAMAZ — uygulamayı o sunuyor.
+  Servlet tarafındaki kolu bu dosyadır.
+
+  ÖLÇÜLEN ARIZA (2026-10-03, zeus-ai-mcp): mcp-core-2.0.0.jar üç sınıfını
+  @WebServlet(asyncSupported=true) ile işaretliyor — HttpServletStatelessServerTransport,
+  HttpServletStreamableServerTransportProvider, HttpServletSseServerTransportProvider. Üçü de
+  builder ile kurulur ve NO-ARG CTOR'U YOKTUR (bizim kullandığımız taşıma bunlar değil; WebMVC
+  RouterFunction tabanlı olan). WildFly bunları composite index'te görüp servlet olarak kurmaya
+  çalışıyor ve deploy şu hatayla düşüyor:
+
+      NoSuchMethodException: io.modelcontextprotocol.server.transport
+                             .HttpServletStatelessServerTransport.<init>()
+
+  Bu arıza, kapsam denetiminin (verify-module-coverage.sh) YAKALAYAMADIĞI sınıftandır: o
+  "jar module'de var mı?" sorusunu cevaplar, "sınıflar link olur / kurulur mu?" sorusunu
+  cevaplayamaz. Yeşil kapsam + düşen deploy ile ölçüldü.
+
+  NEDEN JANDEX'İ ATLAMAK ÇÖZÜM DEĞİL: o jar'ı index'lemeyi atlamak akla geliyor, ama
+  install-zeus-module.sh'ın yorumu bunun ölçülmüş arızasını kaydediyor — KISMİ index, hızlı yolu
+  (ModuleIndexBuilder) çalışır ama TAMAMLANMAMIŞ bırakır ve @HandlesTypes taraması o jar'lardaki
+  sınıfları SESSİZCE kaçırır. O yüzden index her jar'a gömülür ve daraltma burada yapılır.
+
+  SPRING'E ETKİSİ YOK (ölçüldü): metadata-complete anotasyonla servlet/filter/listener
+  BİLDİRİMİNİ kapatır; ServletContainerInitializer keşfi (META-INF/services) ve
+  @HandlesTypes(WebApplicationInitializer) taraması etkilenmez — bu dosya eklendikten sonra
+  deploy, Spring bean kurulumuna kadar ilerliyor, yani DispatcherServlet kuruluyor.
+
+  REGRESYON RİSKİ YOK (tarandı): zeus-fw, referans uygulama ve üç örnek uygulamada
+  @WebServlet / @WebFilter / @WebListener kullanımı SIFIRDIR. Zeus filtreleri
+  (CorrelationIdFilter, RequestLoggingFilter, ZeusMcpTokenFilter) @Order'lı Spring bean'leridir;
+  Boot onları programatik olarak kaydeder, anotasyon taramasına ihtiyaç duymaz.
+
+  BU ŞABLON YALNIZ STANDART TİP İÇİNDİR. descriptor-soap / -bff / -standalone'a bilinçli olarak
+  eklenmedi: SOAP tipi @WebService ENDPOINT yayınlar ve WildFly'ın webservices subsystem'i ile
+  etkileşimi ayrıca ölçülmeden aynı kol çekilmemeli.
+
+  Uygulamanın kendi web.xml'ine ihtiyacı varsa (nadir): src/main/webapp/WEB-INF/web.xml koyması
+  bu dosyayla ÇAKIŞIR. O durumda uygulama metadata-complete="true"yu kendi dosyasına taşımalıdır.
+-->
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee
+                             https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0"
+         metadata-complete="true">
+</web-app>
