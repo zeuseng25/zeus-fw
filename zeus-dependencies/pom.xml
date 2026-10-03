@@ -212,6 +212,11 @@
             </dependency>
             <dependency>
                 <groupId>com.zeus</groupId>
+                <artifactId>zeus-ai-mcp</artifactId>
+                <version>${revision}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.zeus</groupId>
                 <artifactId>zeus-soap</artifactId>
                 <version>${revision}</version>
             </dependency>

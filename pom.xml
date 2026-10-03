@@ -65,6 +65,9 @@
         <module>zeus-batch</module>
         <!-- LLM erişimi (Spring AI 2.x, OpenAI-uyumlu endpoint: vLLM / LiteLLM / OpenRouter). -->
         <module>zeus-ai</module>
+        <!-- Uygulamanın @Tool metotlarını MCP sunucusu olarak harici ajanlara yayınlar.
+             zeus-ai'ye bağımlıdır → reaktörde ondan SONRA gelir. -->
+        <module>zeus-ai-mcp</module>
         <!-- Tip modülleri: SOAP (CXF altyapısı) ve BFF (gateway + login iskeleti). -->
         <module>zeus-soap</module>
         <module>zeus-sms</module>

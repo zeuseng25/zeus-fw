@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>com.zeus</groupId>
+        <artifactId>zeus-parent</artifactId>
+        <version>${revision}</version>
+        <relativePath>../zeus-parent/pom.xml</relativePath>
+    </parent>
+
+    <artifactId>zeus-ai-mcp</artifactId>
+    <packaging>jar</packaging>
+
+    <name>Zeus AI MCP</name>
+    <description>Uygulamanın mevcut @Tool metotlarını MCP (Model Context Protocol) sunucusu olarak
+        harici AI ajanlarına yayınlar: açık kayıt sözleşmesi (ZeusMcpTools), paylaşılan sır ile
+        fail-closed erişim denetimi, her tool çağrısının correlation-id'li audit'i.
+        Taşıma streamable HTTP (WebMVC) üzerindedir.</description>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
+        </dependency>
+
+        <!-- MCP SUNUCUSU — streamable HTTP / WebMVC.
+             WebFlux taşıması bilinçli olarak KULLANILMAZ: module'e spring-webflux girdiğinde
+             WildFly'ın POST_MODULE anotasyon taraması jakarta.websocket'i göremeyip deploy'u
+             düşürmüştü (bkz. ../spring-wildfly-arch/gelistirmeler/18-spring-ai-entegrasyonu.md).
+             io.modelcontextprotocol.sdk:* BURADA BİLDİRİLMEZ — transitif taşıyıcıdır ve sürümü
+             pinli spring-ai-mcp / mcp-spring-webmvc üzerinden deterministiktir (BOM kuralı 4). -->
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
+        </dependency>
+
+        <!-- ZeusMcpTools ile birlikte ToolCallback/ToolCallbackProvider tiplerini de getirir
+             (spring-ai-model, zeus-ai üzerinden geçişli). zeus-ai'ye bağımlılık aynı zamanda
+             "ai yeteneği bildirilmeden mcp açılamaz" kuralını Maven seviyesinde dayatır:
+             ZeusAiAutoConfiguration classpath'te olduğu için ZeusCapabilityVerifier
+             zeus.ai.enabled bildirimini talep eder. -->
+        <dependency>
+            <groupId>com.zeus</groupId>
+            <artifactId>zeus-ai</artifactId>
+        </dependency>
+
+        <!-- TOMCAT ÇİFT KOPYA KORUMASI — BU SATIR KALDIRILAMAZ.
+             spring-ai-starter-mcp-server-webmvc → spring-boot-starter-web → spring-boot-starter-tomcat
+             zinciri tomcat-embed-core'u COMPILE scope'ta getirir; o jar 146 jakarta/servlet/** sınıfı
+             taşır ve deployment classloader'ında servlet API'sinin İKİNCİ kopyasını oluşturarak
+             LinkageError'a yol açar. provided scope, tüm tomcat-embed-* alt ağacını runtime
+             kapanışından düşürür — 2026-10-03'te ölçülerek doğrulandı (task-0-report.md, P3). -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-tomcat</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
+</project>
