@@ -154,6 +154,14 @@ bütçe geçirmiyordu — sonuç: `zeus.ai.agent.max-steps`/`max-tokens`/`max-du
   durduğunu gösterir; `specTeAcikcaVerilenButceAjaninVarsayilaniniEZER` ise `spec.budget()`
   AÇIKÇA verildiğinde onun önceliğini doğrular.
 
+**Canlı teyit (2026-10-04):** fix, stub model dışında **gerçek bir LLM ile, WildFly üzerinde**
+de ölçüldü. Tüketici uygulamada `zeus.ai.agent.max-steps=1` yapılıp yeniden deploy edildiğinde
+koşu `stopReason=STEP_BUDGET` / `steps=1` ile durdu ve açılış logu yapılandırılan bütçeyi
+(`varsayılan bütçe: 1 adım / 200000 token / PT2M`) bildirdi; property geri alındığında yine
+`10 adım …` yazdı. Aynı ortamda property dokunulmamışken koşu bütçeye değmeden
+`MODEL_FINISHED` ile bitti. Ölçümün tamamı:
+`../spring-wildfly-arch/gelistirmeler/20-arastirma-ajani.md` → "Gerçek koşu — ölçüm".
+
 ## Koşu kapsamlı kurulumun gerekçesi
 
 `DefaultZeusAgent.run`/`runAs` her çağrıda **taze** bir dünya kurar: yeni `InMemoryWorkspace`,
