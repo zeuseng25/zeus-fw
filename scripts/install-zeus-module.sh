@@ -347,6 +347,59 @@ fi
 } > "${MODULE_DIR}/module.xml"
 
 echo ">> module.xml üretildi"
+
+# --- 5b) Kaynak raporu: her jar'ı HANGİ üst-düzey bağımlılık getiriyor ---
+# Sorun anında (CVE, LinkageError, beklenmeyen autoconfig) "bu jar nereden geldi?" sorusunu
+# cevaplar: sahip bir zeus-* modülüyse o modülün pom.xml'i incelenir, değilse
+# zeus-wildfly-module/pom.xml'deki elle eklenen yığın. -Dverbose: "omitted for duplicate"
+# dalları da sayılır, yani bir jar'ı İSTEYEN TÜM sahipler listelenir (yalnız Maven'ın seçtiği değil).
+# Rapor module dizininde durur; diğer scriptler yalnız *.jar / module.xml okuduğu için etkilenmez.
+REPORT="${MODULE_DIR}/ZEUS-KAYNAK.txt"
+if ! (cd "${MODULE_BUILD_DIR}" && mvn -q dependency:tree -Dverbose -DoutputFile="${TMP}/tree.txt" >/dev/null); then
+    echo "HATA: ${MODULE_NAME}:${SLOT} module KURULDU ama kaynak raporu için 'mvn dependency:tree' başarısız." >&2
+    exit 1
+fi
+python3 - "${TMP}/tree.txt" "${MODULE_DIR}" "${MODULE_NAME}:${SLOT}" > "${REPORT}" <<'PY'
+import os, re, sys
+from collections import defaultdict
+tree, mdir, title = sys.argv[1:4]
+jars = sorted(f for f in os.listdir(mdir) if f.endswith('.jar'))
+owners = defaultdict(set)   # (groupId, artifactId, classifier) -> sahipler (jackson 2/3 aynı artifactId)
+jar_key = {}                # gerçek jar adı -> (groupId, artifactId, classifier)
+owner = None
+for line in open(tree):
+    m = re.search(r'[+\\]- \(?([^ )\n]+)', line)
+    if not m:
+        continue
+    p = m.group(1).split(':')                     # g:a:type[:classifier]:version:scope
+    g, a, c, v, scope = p[0], p[1], (p[3] if len(p) == 6 else ''), p[-2], p[-1]
+    if m.start() == 0:                            # derinlik 1 = üst-düzey bağımlılık
+        # test/provided sahip yalnız yedek: Maven bazen o daldaki jar'ı compile'a yükseltir
+        owner = f'{a} ({scope})' if scope in ('test', 'provided') else a
+    if owner:
+        owners[(g, a, c)].add(owner)
+        jar_key[f"{a}-{v}{'-' + c if c else ''}.jar"] = (g, a, c)
+per_owner = defaultdict(list)
+rows = []
+for j in jars:
+    found = owners.get(jar_key.get(j), {'?'})
+    o = sorted(x for x in found if '(' not in x) or sorted(found)
+    rows.append((j, o))
+    for x in o:
+        per_owner[x].append(j)
+print(f"# {title} — jar kaynak raporu ({len(jars)} jar)")
+print("# Sorunlu jar'ı bul → 'getiren' sütunundaki zeus-* modülünün pom.xml'ini incele;")
+print("# zeus-* değilse zeus-wildfly-module/pom.xml'deki elle eklenen yığındır.")
+print("# Tam yol: (cd zeus-wildfly-module && mvn dependency:tree -Dverbose -Dincludes=<groupId>:<artifactId>)")
+print("\n## Getiren -> jar sayısı")
+for x, js in sorted(per_owner.items(), key=lambda kv: -len(kv[1])):
+    print(f"{x:45} {len(js)}")
+print("\n## Jar -> getiren")
+for j, o in rows:
+    print(f"{j:65} {', '.join(o)}")
+PY
+echo ">> Kaynak raporu: ${REPORT}"
+sed -n '/^## Getiren/,/^$/p' "${REPORT}" | sed 's/^/   /'
 echo "✅ ${MODULE_NAME}:${SLOT} module kuruldu: ${MODULE_DIR}"
 if [[ "${SLOT}" == "main" ]]; then
     echo "   NOT: main slot'u güncellendi → yüklüyse WildFly RESTART gerekir (module tanımı cache'li)."
