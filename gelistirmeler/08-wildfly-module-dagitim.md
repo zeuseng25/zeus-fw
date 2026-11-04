@@ -228,6 +228,31 @@ dışlanır) → her jar'a Jandex index göm → `module.xml` üret.
 - **module.xml değişince WildFly RESTART şart** (module tanımı cache'li).
 - Yalnız zeus/uygulama kodu değişince module değişmez (zeus jar'ları WAR'da) → WAR redeploy yeter.
 
+### Kaynak raporu — "bu jar nereden geldi?" (`ZEUS-KAYNAK.txt`)
+
+Script her kurulumda module dizinine (`modules/com/zeus/<slot>/ZEUS-KAYNAK.txt`) bir rapor yazar
+ve özetini konsola basar. Her jar için onu getiren **üst-düzey** `zeus-wildfly-module`
+bağımlılığını listeler (`mvn dependency:tree -Dverbose` ile — bir jar'ı isteyen TÜM sahipler,
+yalnız Maven'ın seçtiği değil):
+
+```
+## Getiren -> jar sayısı
+spring-ai-starter-model-openai                102
+cxf-spring-boot-starter-jaxws                 40
+zeus-database                                 24
+...
+## Jar -> getiren
+HikariCP-7.0.2.jar                            spring-boot-starter-data-jpa
+spring-core-7.0.8.jar                         spring-boot-starter-data-jpa, zeus-base, zeus-database, ...
+```
+
+Sorun anında (CVE, `LinkageError`, beklenmeyen autoconfig): jar'ı raporda bul → sahip bir `zeus-*`
+modülüyse o modülün `pom.xml`'ini incele; değilse `zeus-wildfly-module/pom.xml`'deki elle eklenen
+yığındır. Ara düğümler dahil tam yol: `(cd zeus-wildfly-module && mvn dependency:tree -Dverbose -Dincludes=<groupId>:<artifactId>)`.
+`(test)`/`(provided)` etiketli sahip = jar yalnız o dalda görünüyor ama Maven onu compile'a
+yükseltmiş (ör. `commons-logging` ← `spring-boot-starter-test`) — incelemeye değer bir sızıntı.
+Diğer scriptler module dizininde yalnız `*.jar`/`module.xml` okuduğu için rapor onları etkilemez.
+
 ## CVE yamasıyla ilişki
 
 CVE yaması bu module üzerinden uygulanır: sürüm/override **`zeus-dependencies` BOM**'da yapılır,
